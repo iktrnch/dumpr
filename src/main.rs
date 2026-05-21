@@ -19,13 +19,13 @@ struct Args {
     files: bool,
 
     /// Only output files that match the regex pattern
-    /// Example: --pattern ".rs" to only include Rust files
+    /// Example: --include ".rs" to only include Rust files
     /// Note: This will be applied after the ignore rules, so it will only filter the files that are not ignored
     #[arg(short, long, default_value = "")]
     include: String,
 
     /// Exlude files which path matches the regex pattern
-    /// Example: --pattern ".png" will exlude all PNG files
+    /// Example: --exclude ".png" will exlude all PNG files
     /// Note: This will be applied after the ignore rules, so it will only filter the files that are not ignored
     #[arg(short, long, default_value = "^$")]
     exclude: String,
@@ -34,7 +34,10 @@ struct Args {
 fn main() {
     let args = Args::parse();
     let mut digest = Digest::new(&args);
-    digest.walk_dirs(&args.directory);
+    if digest.walk_dirs(&args.directory).is_err() {
+        eprintln!("Failed to parse the directory. Please check the provided path and try again.");
+        std::process::exit(1);
+    };
 
     if args.tree {
         digest.print_tree();
