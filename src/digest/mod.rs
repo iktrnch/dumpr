@@ -45,9 +45,7 @@ impl Digest {
                     if entry.path().is_file() && self.matcher.is_match(path) {
                         self.file_tree.insert(path)?;
                         match self.read_file(entry.path().to_str().unwrap()) {
-                            Ok(()) => {
-                                self.file_tree.insert(path)?;
-                            }
+                            Ok(()) => {}
                             Err(_) => {}
                         }
                     }
