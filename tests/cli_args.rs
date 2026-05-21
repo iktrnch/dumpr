@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-fn digest_cmd() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_digest"))
+fn dumpr_cmd() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_dumpr"))
 }
 
 fn temp_dir(name: &str) -> PathBuf {
@@ -12,7 +12,7 @@ fn temp_dir(name: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system clock should be after unix epoch")
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("git_digest_{name}_{unique}"));
+    let dir = std::env::temp_dir().join(format!("dumpr_{name}_{unique}"));
     fs::create_dir_all(&dir).expect("test temp directory should be created");
     dir
 }
@@ -60,7 +60,7 @@ fn assert_stdout_not_contains(output: &Output, unexpected: &str) {
 
 #[test]
 fn help_lists_every_cli_argument() {
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("--help")
         .output()
         .expect("help command should run");
@@ -86,30 +86,30 @@ fn tree_flag_uses_current_directory_by_default() {
     let dir = temp_dir("default_directory_tree");
     write_file(dir.join("root.txt"), "root file");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .current_dir(&dir)
         .arg("--tree")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "root.txt");
 }
 
 #[test]
-fn short_directory_argument_selects_directory_to_digest() {
+fn short_directory_argument_selects_directory_to_dump() {
     let dir = temp_dir("short_directory");
     let selected = dir.join("selected");
     let sibling = dir.join("sibling");
     write_file(selected.join("selected.txt"), "selected");
     write_file(sibling.join("sibling.txt"), "sibling");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("-d")
         .arg(&selected)
         .arg("--tree")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "selected.txt");
@@ -117,19 +117,19 @@ fn short_directory_argument_selects_directory_to_digest() {
 }
 
 #[test]
-fn long_directory_argument_selects_directory_to_digest() {
+fn long_directory_argument_selects_directory_to_dump() {
     let dir = temp_dir("long_directory");
     let selected = dir.join("selected");
     let sibling = dir.join("sibling");
     write_file(selected.join("selected.txt"), "selected");
     write_file(sibling.join("sibling.txt"), "sibling");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("--directory")
         .arg(&selected)
         .arg("--tree")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "selected.txt");
@@ -141,12 +141,12 @@ fn short_tree_argument_prints_file_tree() {
     let dir = temp_dir("short_tree");
     write_file(dir.join("nested").join("leaf.txt"), "leaf");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("-d")
         .arg(&dir)
         .arg("-t")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "nested");
@@ -158,12 +158,12 @@ fn long_tree_argument_prints_file_tree() {
     let dir = temp_dir("long_tree");
     write_file(dir.join("nested").join("leaf.txt"), "leaf");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("--directory")
         .arg(&dir)
         .arg("--tree")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "nested");
@@ -175,12 +175,12 @@ fn short_files_argument_prints_file_contents() {
     let dir = temp_dir("short_files");
     write_file(dir.join("content.txt"), "short files body");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("-d")
         .arg(&dir)
         .arg("-f")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "content.txt");
@@ -192,12 +192,12 @@ fn long_files_argument_prints_file_contents() {
     let dir = temp_dir("long_files");
     write_file(dir.join("content.txt"), "long files body");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("--directory")
         .arg(&dir)
         .arg("--files")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "content.txt");
@@ -210,14 +210,14 @@ fn short_include_argument_keeps_only_matching_paths() {
     write_file(dir.join("main.rs"), "fn main() {}");
     write_file(dir.join("notes.txt"), "notes");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("-d")
         .arg(&dir)
         .arg("-t")
         .arg("-i")
         .arg(r"\.rs$")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "main.rs");
@@ -230,14 +230,14 @@ fn long_include_argument_keeps_only_matching_paths() {
     write_file(dir.join("main.rs"), "fn main() {}");
     write_file(dir.join("notes.txt"), "notes");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("--directory")
         .arg(&dir)
         .arg("--tree")
         .arg("--include")
         .arg(r"\.rs$")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "main.rs");
@@ -250,14 +250,14 @@ fn short_exclude_argument_removes_matching_paths() {
     write_file(dir.join("keep.rs"), "keep");
     write_file(dir.join("skip.log"), "skip");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("-d")
         .arg(&dir)
         .arg("-t")
         .arg("-e")
         .arg(r"\.log$")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "keep.rs");
@@ -270,14 +270,14 @@ fn long_exclude_argument_removes_matching_paths() {
     write_file(dir.join("keep.rs"), "keep");
     write_file(dir.join("skip.log"), "skip");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("--directory")
         .arg(&dir)
         .arg("--tree")
         .arg("--exclude")
         .arg(r"\.log$")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
     assert_success(&output);
     assert_stdout_contains(&output, "keep.rs");
@@ -289,15 +289,18 @@ fn invalid_include_regex_exits_with_error() {
     let dir = temp_dir("invalid_include");
     write_file(dir.join("file.txt"), "body");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("--directory")
         .arg(&dir)
         .arg("--include")
         .arg("[")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
-    assert!(!output.status.success(), "expected invalid include regex to fail");
+    assert!(
+        !output.status.success(),
+        "expected invalid include regex to fail"
+    );
     assert!(
         stderr(&output).contains("Failed to read match pattern"),
         "expected include regex error message\nstderr:\n{}",
@@ -310,15 +313,18 @@ fn invalid_exclude_regex_exits_with_error() {
     let dir = temp_dir("invalid_exclude");
     write_file(dir.join("file.txt"), "body");
 
-    let output = digest_cmd()
+    let output = dumpr_cmd()
         .arg("--directory")
         .arg(&dir)
         .arg("--exclude")
         .arg("[")
         .output()
-        .expect("digest command should run");
+        .expect("dumpr command should run");
 
-    assert!(!output.status.success(), "expected invalid exclude regex to fail");
+    assert!(
+        !output.status.success(),
+        "expected invalid exclude regex to fail"
+    );
     assert!(
         stderr(&output).contains("Failed to read exclude pattern"),
         "expected exclude regex error message\nstderr:\n{}",

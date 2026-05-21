@@ -1,68 +1,119 @@
-# git-digest
+# dumpr
 
-Rust CLI tool for generating a simple “digest” of a repository: a directory tree and/or concatenated file contents.
+dumpr is a small command line tool that turns a directory into a readable text
+dump. It can print the directory tree, the contents of matching text files, or
+both.
 
-## Requirements
+The output is useful when you want to review a project quickly, paste relevant
+files into another tool, or create a compact snapshot of a codebase. dumpr uses
+the same ignore-aware directory walking behaviour as common developer tools, so
+files excluded by ignore rules are skipped before any include or exclude filters
+are applied.
 
-- Rust toolchain (stable) with Cargo
+## Install
 
-## Setup
+### AUR
 
-Clone the repo and build:
+The package is available in the AUR, install it with your preferred AUR
+helper:
 
-```bash
-git clone https://github.com/iktrnch/git-digest.git
-cd git-digest
-cargo build --release
+```sh
+paru -S dumpr
 ```
 
-Optionally install the CLI into your PATH:
+or:
 
-```bash
+```sh
+yay -S dumpr
+```
+
+### From git
+
+You need a working Rust toolchain with Cargo installed.
+
+Clone the repository, build the binary, and install it into Cargo's bin
+directory:
+
+```sh
+git clone https://github.com/iktrnch/dumpr.git
+cd dumpr
 cargo install --path .
+```
+
+After installation, make sure Cargo's bin directory is on your `PATH`. It is
+usually `~/.cargo/bin`.
+
+You can also run dumpr directly from the repository while developing:
+
+```sh
+cargo run -- --tree --files
 ```
 
 ## Usage
 
-Run via Cargo (from this repo):
+Print the tree for the current directory:
 
-```bash
-cargo run -- --help
+```sh
+dumpr --tree
 ```
 
-Or, if installed, run:
+Print the contents of files in the current directory:
 
-```bash
-git_digest --help
+```sh
+dumpr --files
 ```
 
-### Common examples
+Print both the tree and file contents for another directory:
 
-Print a directory tree (default directory is `.`):
-
-```bash
-git_digest --tree
+```sh
+dumpr --directory path/to/project --tree --files
 ```
 
-Print concatenated file contents:
+Only include Rust files:
 
-```bash
-git_digest --files
+```sh
+dumpr --tree --files --include '\.rs$'
 ```
 
-Digest a specific directory:
+Exclude generated files or directories:
 
-```bash
-git_digest -d path/to/repo --tree --files
+```sh
+dumpr --tree --files --exclude 'target/|\.lock$'
 ```
 
-Use a custom ignore file (defaults to `./.gitignore`):
+The `--include` and `--exclude` values are regular expressions matched against
+file paths. Ignore rules are applied first, then the include filter, then the
+exclude filter.
 
-```bash
-git_digest -i path/to/ignorefile --tree
-```
+### Arguments
 
-## Notes
+`-d, --directory <DIRECTORY>`
 
-- Ignore matching is currently simple substring matching (plus an automatic `.git` ignore).
-- Output is written to stdout.
+Directory to read. Defaults to the current directory.
+
+`-t, --tree`
+
+Print a tree view of the matching files.
+
+`-f, --files`
+
+Print the contents of the matching files. Each file is separated by a header
+containing its path.
+
+`-i, --include <INCLUDE>`
+
+Only include files whose path matches this regular expression. Defaults to an
+empty pattern, which matches every path that was not ignored.
+
+`-e, --exclude <EXCLUDE>`
+
+Exclude files whose path matches this regular expression. Defaults to `^$`,
+which does not match normal file paths.
+
+`-h, --help`
+
+Print command line help.
+
+`-V, --version`
+
+Print the installed dumpr version.

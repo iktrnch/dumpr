@@ -1,10 +1,10 @@
 [[bin]]
-name = "digest"
+name = "dumpr"
 path = "src/main.rs"
 
 [package]
-name = "git_digest"
-version = "0.1.0"
+name = "dumpr"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
