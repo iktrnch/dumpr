@@ -2,6 +2,7 @@ mod digest;
 
 use clap::Parser;
 use digest::Digest;
+use std::io::{self, Write};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -39,10 +40,24 @@ fn main() {
         std::process::exit(1);
     };
 
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+
     if args.tree {
-        digest.print_tree();
+        if digest.write_tree(&mut stdout).is_err() {
+            eprintln!("Failed to write the file tree.");
+            std::process::exit(1);
+        }
     }
     if args.files {
-        digest.print_files();
+        if digest.write_files(&mut stdout).is_err() {
+            eprintln!("Failed to write file contents.");
+            std::process::exit(1);
+        }
+    }
+
+    if stdout.flush().is_err() {
+        eprintln!("Failed to flush stdout.");
+        std::process::exit(1);
     }
 }

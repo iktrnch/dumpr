@@ -1,7 +1,7 @@
 mod file_tree;
 mod matcher;
 
-use std::fs;
+use std::{fs, io::Write};
 
 use ignore::WalkBuilder;
 
@@ -12,9 +12,8 @@ use matcher::Matcher;
 
 /// Wrapper struct for file walker
 pub struct Digest {
-    /// Stores creates an in-memory representation of the directory
+    /// Stores the in-memory representation of matching paths.
     file_tree: FileTree,
-    file_buf: String,
     matcher: Matcher,
 }
 
@@ -28,7 +27,6 @@ impl Digest {
 
         Digest {
             file_tree: FileTree::new(initial_directory),
-            file_buf: String::new(),
             matcher: Matcher::new(&args.include, &args.exclude),
         }
     }
@@ -44,10 +42,6 @@ impl Digest {
                     let path = entry.path().to_str().unwrap();
                     if entry.path().is_file() && self.matcher.is_match(path) {
                         self.file_tree.insert(path)?;
-                        match self.read_file(entry.path().to_str().unwrap()) {
-                            Ok(()) => {}
-                            Err(_) => {}
-                        }
                     }
                 }
                 Err(e) => {
@@ -59,32 +53,39 @@ impl Digest {
         Ok(())
     }
 
-    /// Reads the contents of the file into the buffer
-    /// Appends the header in a form of the path
-    fn read_file(&mut self, path: &str) -> anyhow::Result<()> {
+    /// Writes a file header and contents to the output.
+    fn write_file<W: Write>(out: &mut W, path: &str) -> anyhow::Result<()> {
         // Pretty print the header
-        let header = format!(
-            "\n\n========================================\n{}\n========================================\n\n",
+        writeln!(
+            out,
+            "\n\n========================================\n{}\n========================================\n",
             path
-        );
+        )?;
 
         // Get the file contents
         let contents = fs::read_to_string(path)?;
 
-        // Concatinate the header and the file contents
-        let mut file = header;
-        file.push_str(contents.as_str());
-
-        self.file_buf.push_str(file.as_str());
+        out.write_all(contents.as_bytes())?;
 
         Ok(())
     }
 
-    pub fn print_tree(&self) {
-        println!("{}", self.file_tree.print(""));
+    pub fn write_tree<W: Write>(&self, out: &mut W) -> anyhow::Result<()> {
+        self.file_tree.write("", out)?;
+        writeln!(out)?;
+
+        Ok(())
     }
 
-    pub fn print_files(&self) {
-        println!("{}", self.file_buf);
+    pub fn write_files<W: Write>(&self, out: &mut W) -> anyhow::Result<()> {
+        self.file_tree
+            .traverse(|path| match Self::write_file(out, path) {
+                Ok(()) => Ok(()),
+                Err(_) => Ok(()),
+            })?;
+
+        writeln!(out)?;
+
+        Ok(())
     }
 }
