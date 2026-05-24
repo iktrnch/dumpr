@@ -19,17 +19,15 @@ struct Args {
     #[arg(short, long, default_value_t = false, action = clap::ArgAction::SetTrue)]
     files: bool,
 
-    /// Only output files that match the regex pattern
-    /// Example: --include ".rs" to only include Rust files
-    /// Note: This will be applied after the ignore rules, so it will only filter the files that are not ignored
-    #[arg(short, long, default_value = "")]
-    include: String,
+    /// Only output files that match the glob pattern
+    /// Example: --include "*.rs" --include "*.toml" to only include Rust and TOML files
+    #[arg(short, long, default_value = "", value_name = "GLOB")]
+    include: Option<Vec<String>>,
 
     /// Exlude files which path matches the regex pattern
-    /// Example: --exclude ".png" will exlude all PNG files
-    /// Note: This will be applied after the ignore rules, so it will only filter the files that are not ignored
-    #[arg(short, long, default_value = "^$")]
-    exclude: String,
+    /// Example: --exclude "*.png" --exclude "*.json" will exlude all PNG and JSON files
+    #[arg(short, long, value_name = "GLOB")]
+    exclude: Option<Vec<String>>,
 }
 
 fn main() {
