@@ -1,1 +1,13 @@
+# Compilation artifacts
 /target
+
+# Benchmark repos / local benchmark data
+.bench/
+
+# Benchmark outputs
+benches/results/*
+!benches/results/.gitkeep
+
+# perf / flamegraph profiler output
+perf.data
+perf.data.old

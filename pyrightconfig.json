@@ -1,0 +1,6 @@
+{
+	"pythonVersion": "3.14",
+	"include": ["scripts"],
+	"exclude": [".bench", "target", "benches/results"],
+	"typeCheckingMode": "standard"
+}

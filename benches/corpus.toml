@@ -1,0 +1,19 @@
+[[repo]]
+name = "ripgrep"
+url = "https://github.com/BurntSushi/ripgrep.git"
+rev = "4519153e5e461527f4bca45b042fff45c4ec6fb9"
+
+[[repo]]
+name = "ratatui"
+url = "https://github.com/ratatui/ratatui.git"
+rev = "be718d049a668602443e7f7dfb31ec366f40624a"
+
+[[repo]]
+name = "bevy"
+url = "https://github.com/bevyengine/bevy.git"
+rev = "3cc7161f5f133cecb8886351691592bc31dfad6f"
+
+[[repo]]
+name = "bun"
+url = "https://github.com/oven-sh/bun.git"
+rev = "49c97de6b38192db015d26619e5acd26332c80b6"
