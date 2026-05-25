@@ -205,6 +205,64 @@ fn long_files_argument_prints_file_contents() {
 }
 
 #[test]
+fn tree_is_printed_before_file_contents() {
+    let dir = temp_dir("tree_before_files");
+    write_file(dir.join("content.txt"), "file body");
+
+    let output = dumpr_cmd()
+        .arg("--directory")
+        .arg(&dir)
+        .arg("--tree")
+        .arg("--files")
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&output);
+
+    let stdout = stdout(&output);
+    let tree_pos = stdout
+        .find("content.txt")
+        .expect("tree should contain file name");
+    let body_pos = stdout
+        .find("file body")
+        .expect("file contents should be printed");
+
+    assert!(
+        tree_pos < body_pos,
+        "expected tree to be printed before file contents\nstdout:\n{stdout}"
+    );
+}
+
+#[test]
+fn files_are_printed_in_post_order_dfs() {
+    let dir = temp_dir("post_order_files");
+    write_file(dir.join("root.txt"), "root body");
+    write_file(dir.join("nested").join("leaf.txt"), "leaf body");
+
+    let output = dumpr_cmd()
+        .arg("--directory")
+        .arg(&dir)
+        .arg("--files")
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&output);
+
+    let stdout = stdout(&output);
+    let leaf_pos = stdout
+        .find("leaf body")
+        .expect("nested file contents should be printed");
+    let root_pos = stdout
+        .find("root body")
+        .expect("root file contents should be printed");
+
+    assert!(
+        leaf_pos < root_pos,
+        "expected nested file to be printed before root file\nstdout:\n{stdout}"
+    );
+}
+
+#[test]
 fn short_include_argument_keeps_only_matching_paths() {
     let dir = temp_dir("short_include");
     write_file(dir.join("main.rs"), "fn main() {}");
