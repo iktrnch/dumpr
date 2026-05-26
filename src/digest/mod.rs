@@ -1,33 +1,44 @@
 mod file_tree;
-mod matcher;
-
-use std::{fs, io::Write};
 
 use ignore::WalkBuilder;
+use ignore::overrides::OverrideBuilder;
+use std::{fs, io::Write};
 
 use crate::Args;
-
-use file_tree::FileTree;
-use matcher::Matcher;
+use crate::digest::file_tree::FileTree;
 
 /// Wrapper struct for file walker
 pub struct Digest {
     /// Stores the in-memory representation of matching paths.
     file_tree: FileTree,
-    matcher: Matcher,
+    overrides: OverrideBuilder,
 }
 
 impl Digest {
     pub fn new(args: &Args) -> Self {
-        // Get the directory for the root of the tree
-        let initial_directory = match args.directory.split_once("/") {
-            Some(path) => path.0,
-            None => args.directory.as_str(),
-        };
+        let mut override_builder = OverrideBuilder::new(&args.directory);
+
+        if let Some(include_args) = &args.include {
+            for glob in include_args {
+                match override_builder.add(&glob) {
+                    Ok(_) => {}
+                    Err(_) => eprintln!("Failed to parse glob: {}\nContinuing anyway.", glob),
+                };
+            }
+        }
+
+        if let Some(exclude_args) = &args.exclude {
+            for glob in exclude_args {
+                match override_builder.add(&format!("!{}", glob)) {
+                    Ok(_) => {}
+                    Err(_) => eprintln!("Failed to parse glob: {}\nContinuing anyway.", glob),
+                };
+            }
+        }
 
         Digest {
-            file_tree: FileTree::new(initial_directory),
-            matcher: Matcher::new(&args.include, &args.exclude),
+            file_tree: FileTree::new(&args.directory),
+            overrides: override_builder,
         }
     }
 
@@ -35,12 +46,13 @@ impl Digest {
     /// And applies ignore patterns and building the file tree structure.
     /// The directory tree is traversed using BFS
     pub fn walk_dirs(&mut self, path: &str) -> anyhow::Result<()> {
-        let entries = WalkBuilder::new(path).build();
+        let overrides = self.overrides.build()?;
+        let entries = WalkBuilder::new(path).overrides(overrides).build();
         for entry in entries {
             match entry {
                 Ok(entry) => {
                     let path = entry.path().to_str().unwrap();
-                    if entry.path().is_file() && self.matcher.is_match(path) {
+                    if entry.path().is_file() {
                         self.file_tree.insert(path)?;
                     }
                 }
