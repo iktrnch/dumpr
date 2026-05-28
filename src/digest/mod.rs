@@ -68,11 +68,8 @@ impl Digest {
     /// Writes a file header and contents to the output.
     fn write_file<W: Write>(out: &mut W, path: &str) -> anyhow::Result<()> {
         // Pretty print the header
-        writeln!(
-            out,
-            "\n\n========================================\n{}\n========================================\n",
-            path
-        )?;
+        let table_bar = "─".repeat(path.len());
+        writeln!(out, "\n┌─{}─┐\n│ {} │\n└─{}─┘", table_bar, path, table_bar)?;
 
         // Get the file contents
         let contents = fs::read_to_string(path)?;
