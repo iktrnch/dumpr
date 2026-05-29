@@ -1,14 +1,12 @@
-mod digest;
-
 use clap::Parser;
-use digest::Digest;
+use dumpr::{Digest, DigestOptions};
 use std::io::{self, Write};
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Folder to digest
-    #[arg(short, long, default_value = ".")]
+    /// Direcotory to digest
+    #[arg(value_name = "DIRECTORY", default_value = ".")]
     directory: String,
 
     /// Output file tree structure
@@ -30,9 +28,21 @@ struct Args {
     exclude: Option<Vec<String>>,
 }
 
+impl From<Args> for DigestOptions {
+    fn from(value: Args) -> Self {
+        DigestOptions {
+            directory: value.directory,
+            include: value.include,
+            exclude: value.exclude,
+        }
+    }
+}
+
 fn main() {
     let args = Args::parse();
-    let mut digest = Digest::new(&args);
+    let options = DigestOptions::from(args.clone());
+
+    let mut digest = Digest::new(options);
     if digest.walk_dirs(&args.directory).is_err() {
         eprintln!("Failed to parse the directory. Please check the provided path and try again.");
         std::process::exit(1);

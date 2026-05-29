@@ -4,8 +4,13 @@ use ignore::WalkBuilder;
 use ignore::overrides::OverrideBuilder;
 use std::{fs, io::Write};
 
-use crate::Args;
-use crate::digest::file_tree::FileTree;
+use crate::file_tree::FileTree;
+
+pub struct DigestOptions {
+    pub directory: String,
+    pub include: Option<Vec<String>>,
+    pub exclude: Option<Vec<String>>,
+}
 
 /// Wrapper struct for file walker
 pub struct Digest {
@@ -15,10 +20,10 @@ pub struct Digest {
 }
 
 impl Digest {
-    pub fn new(args: &Args) -> Self {
-        let mut override_builder = OverrideBuilder::new(&args.directory);
+    pub fn new(options: DigestOptions) -> Self {
+        let mut override_builder = OverrideBuilder::new(&options.directory);
 
-        if let Some(include_args) = &args.include {
+        if let Some(include_args) = &options.include {
             for glob in include_args {
                 match override_builder.add(&glob) {
                     Ok(_) => {}
@@ -27,7 +32,7 @@ impl Digest {
             }
         }
 
-        if let Some(exclude_args) = &args.exclude {
+        if let Some(exclude_args) = &options.exclude {
             for glob in exclude_args {
                 match override_builder.add(&format!("!{}", glob)) {
                     Ok(_) => {}
@@ -37,7 +42,7 @@ impl Digest {
         }
 
         Digest {
-            file_tree: FileTree::new(&args.directory),
+            file_tree: FileTree::new(&options.directory),
             overrides: override_builder,
         }
     }
