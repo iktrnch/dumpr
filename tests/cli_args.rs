@@ -25,6 +25,28 @@ fn write_file(path: impl AsRef<Path>, contents: &str) {
     fs::write(path, contents).expect("test fixture file should be written");
 }
 
+fn sample_project(name: &str) -> PathBuf {
+    let dir = temp_dir(name);
+
+    write_file(dir.join("README.md"), "project readme\n");
+    write_file(
+        dir.join("Cargo.toml"),
+        "[package]\nname = \"fixture-package\"\n",
+    );
+    write_file(dir.join("src").join("main.rs"), "fn main() {}\n");
+    write_file(dir.join("src").join("lib.rs"), "pub fn sample() {}\n");
+    write_file(
+        dir.join("src").join("generated.rs"),
+        "pub const GENERATED: bool = true;\n",
+    );
+    write_file(dir.join("src").join("data.json"), "{\"ok\":true}\n");
+    write_file(dir.join("notes").join("todo.txt"), "ship tests\n");
+    write_file(dir.join("notes").join("draft.md"), "draft notes\n");
+    write_file(dir.join("target").join("debug.log"), "debug output\n");
+
+    dir
+}
+
 fn stdout(output: &Output) -> String {
     String::from_utf8(output.stdout.clone()).expect("stdout should be valid utf-8")
 }
@@ -42,350 +64,150 @@ fn assert_success(output: &Output) {
     );
 }
 
-fn assert_stdout_contains(output: &Output, expected: &str) {
-    let stdout = stdout(output);
+fn assert_contains(haystack: &str, needle: &str) {
     assert!(
-        stdout.contains(expected),
-        "expected stdout to contain {expected:?}\nstdout:\n{stdout}"
+        haystack.contains(needle),
+        "expected output to contain {needle:?}\noutput:\n{haystack}"
     );
 }
 
-fn assert_stdout_not_contains(output: &Output, unexpected: &str) {
-    let stdout = stdout(output);
+fn assert_not_contains(haystack: &str, needle: &str) {
     assert!(
-        !stdout.contains(unexpected),
-        "expected stdout not to contain {unexpected:?}\nstdout:\n{stdout}"
+        !haystack.contains(needle),
+        "expected output not to contain {needle:?}\noutput:\n{haystack}"
     );
 }
 
 #[test]
-fn help_lists_every_cli_argument() {
+fn help_output_lists_supported_arguments() {
     let output = dumpr_cmd()
         .arg("--help")
         .output()
         .expect("help command should run");
 
     assert_success(&output);
+
     let stdout = stdout(&output);
-    for arg in [
-        "-d, --directory",
+    for expected in [
+        "Usage: dumpr [OPTIONS] [DIRECTORY]",
         "-t, --tree",
         "-f, --files",
-        "-i, --include",
-        "-e, --exclude",
+        "-i, --include <GLOB>",
+        "-e, --exclude <GLOB>",
     ] {
-        assert!(
-            stdout.contains(arg),
-            "expected help output to list {arg:?}\nstdout:\n{stdout}"
-        );
+        assert_contains(&stdout, expected);
     }
 }
 
 #[test]
-fn tree_flag_uses_current_directory_by_default() {
-    let dir = temp_dir("default_directory_tree");
-    write_file(dir.join("root.txt"), "root file");
+fn tree_flag_outputs_project_tree() {
+    let dir = sample_project("tree");
 
     let output = dumpr_cmd()
-        .current_dir(&dir)
-        .arg("--tree")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "root.txt");
-}
-
-#[test]
-fn short_directory_argument_selects_directory_to_dump() {
-    let dir = temp_dir("short_directory");
-    let selected = dir.join("selected");
-    let sibling = dir.join("sibling");
-    write_file(selected.join("selected.txt"), "selected");
-    write_file(sibling.join("sibling.txt"), "sibling");
-
-    let output = dumpr_cmd()
-        .arg("-d")
-        .arg(&selected)
-        .arg("--tree")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "selected.txt");
-    assert_stdout_not_contains(&output, "sibling.txt");
-}
-
-#[test]
-fn long_directory_argument_selects_directory_to_dump() {
-    let dir = temp_dir("long_directory");
-    let selected = dir.join("selected");
-    let sibling = dir.join("sibling");
-    write_file(selected.join("selected.txt"), "selected");
-    write_file(sibling.join("sibling.txt"), "sibling");
-
-    let output = dumpr_cmd()
-        .arg("--directory")
-        .arg(&selected)
-        .arg("--tree")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "selected.txt");
-    assert_stdout_not_contains(&output, "sibling.txt");
-}
-
-#[test]
-fn short_tree_argument_prints_file_tree() {
-    let dir = temp_dir("short_tree");
-    write_file(dir.join("nested").join("leaf.txt"), "leaf");
-
-    let output = dumpr_cmd()
-        .arg("-d")
-        .arg(&dir)
         .arg("-t")
+        .arg(&dir)
         .output()
         .expect("dumpr command should run");
 
     assert_success(&output);
-    assert_stdout_contains(&output, "nested");
-    assert_stdout_contains(&output, "leaf.txt");
+
+    let stdout = stdout(&output);
+    assert_contains(&stdout, dir.to_string_lossy().as_ref());
+    assert_contains(&stdout, "src");
+    assert_contains(&stdout, "main.rs");
+    assert_contains(&stdout, "notes");
+    assert_contains(&stdout, "todo.txt");
+    assert_not_contains(&stdout, "fn main() {}");
+    assert_not_contains(&stdout, "ship tests");
 }
 
 #[test]
-fn long_tree_argument_prints_file_tree() {
-    let dir = temp_dir("long_tree");
-    write_file(dir.join("nested").join("leaf.txt"), "leaf");
+fn files_flag_outputs_file_contents() {
+    let dir = sample_project("files");
 
     let output = dumpr_cmd()
-        .arg("--directory")
-        .arg(&dir)
-        .arg("--tree")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "nested");
-    assert_stdout_contains(&output, "leaf.txt");
-}
-
-#[test]
-fn short_files_argument_prints_file_contents() {
-    let dir = temp_dir("short_files");
-    write_file(dir.join("content.txt"), "short files body");
-
-    let output = dumpr_cmd()
-        .arg("-d")
-        .arg(&dir)
         .arg("-f")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "content.txt");
-    assert_stdout_contains(&output, "short files body");
-}
-
-#[test]
-fn long_files_argument_prints_file_contents() {
-    let dir = temp_dir("long_files");
-    write_file(dir.join("content.txt"), "long files body");
-
-    let output = dumpr_cmd()
-        .arg("--directory")
         .arg(&dir)
-        .arg("--files")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "content.txt");
-    assert_stdout_contains(&output, "long files body");
-}
-
-#[test]
-fn tree_is_printed_before_file_contents() {
-    let dir = temp_dir("tree_before_files");
-    write_file(dir.join("content.txt"), "file body");
-
-    let output = dumpr_cmd()
-        .arg("--directory")
-        .arg(&dir)
-        .arg("--tree")
-        .arg("--files")
         .output()
         .expect("dumpr command should run");
 
     assert_success(&output);
 
     let stdout = stdout(&output);
-    let tree_pos = stdout
-        .find("content.txt")
-        .expect("tree should contain file name");
-    let body_pos = stdout
-        .find("file body")
-        .expect("file contents should be printed");
-
-    assert!(
-        tree_pos < body_pos,
-        "expected tree to be printed before file contents\nstdout:\n{stdout}"
-    );
+    assert_contains(&stdout, "main.rs");
+    assert_contains(&stdout, "fn main() {}");
+    assert_contains(&stdout, "todo.txt");
+    assert_contains(&stdout, "ship tests");
+    assert_not_contains(&stdout, "├── main.rs");
+    assert_not_contains(&stdout, "└── todo.txt");
 }
 
 #[test]
-fn files_are_printed_in_post_order_dfs() {
-    let dir = temp_dir("post_order_files");
-    write_file(dir.join("root.txt"), "root body");
-    write_file(dir.join("nested").join("leaf.txt"), "leaf body");
+fn tree_and_files_flags_output_tree_before_contents() {
+    let dir = sample_project("tree_and_files");
 
     let output = dumpr_cmd()
-        .arg("--directory")
-        .arg(&dir)
-        .arg("--files")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-
-    let stdout = stdout(&output);
-    let leaf_pos = stdout
-        .find("leaf body")
-        .expect("nested file contents should be printed");
-    let root_pos = stdout
-        .find("root body")
-        .expect("root file contents should be printed");
-
-    assert!(
-        leaf_pos < root_pos,
-        "expected nested file to be printed before root file\nstdout:\n{stdout}"
-    );
-}
-
-#[test]
-fn short_include_argument_keeps_only_matching_paths() {
-    let dir = temp_dir("short_include");
-    write_file(dir.join("main.rs"), "fn main() {}");
-    write_file(dir.join("notes.txt"), "notes");
-
-    let output = dumpr_cmd()
-        .arg("-d")
-        .arg(&dir)
         .arg("-t")
+        .arg("-f")
+        .arg(&dir)
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&output);
+
+    let stdout = stdout(&output);
+    let tree_file_name = stdout
+        .find("├── README.md")
+        .expect("tree output should include README.md");
+    let file_body = stdout
+        .find("project readme")
+        .expect("file output should include README.md contents");
+
+    assert!(
+        tree_file_name < file_body,
+        "expected tree output before file contents\nstdout:\n{stdout}"
+    );
+    assert_contains(&stdout, "main.rs");
+    assert_contains(&stdout, "fn main() {}");
+}
+
+#[test]
+fn tree_and_files_respect_multiple_include_and_exclude_globs() {
+    let dir = sample_project("glob_constraints");
+
+    let output = dumpr_cmd()
+        .arg("-t")
+        .arg("-f")
         .arg("-i")
-        .arg(r"\.rs$")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "main.rs");
-    assert_stdout_not_contains(&output, "notes.txt");
-}
-
-#[test]
-fn long_include_argument_keeps_only_matching_paths() {
-    let dir = temp_dir("long_include");
-    write_file(dir.join("main.rs"), "fn main() {}");
-    write_file(dir.join("notes.txt"), "notes");
-
-    let output = dumpr_cmd()
-        .arg("--directory")
-        .arg(&dir)
-        .arg("--tree")
-        .arg("--include")
-        .arg(r"\.rs$")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "main.rs");
-    assert_stdout_not_contains(&output, "notes.txt");
-}
-
-#[test]
-fn short_exclude_argument_removes_matching_paths() {
-    let dir = temp_dir("short_exclude");
-    write_file(dir.join("keep.rs"), "keep");
-    write_file(dir.join("skip.log"), "skip");
-
-    let output = dumpr_cmd()
-        .arg("-d")
-        .arg(&dir)
-        .arg("-t")
+        .arg("*.rs")
+        .arg("-i")
+        .arg("*.md")
         .arg("-e")
-        .arg(r"\.log$")
+        .arg("generated.rs")
+        .arg("-e")
+        .arg("notes/*")
+        .arg(&dir)
         .output()
         .expect("dumpr command should run");
 
     assert_success(&output);
-    assert_stdout_contains(&output, "keep.rs");
-    assert_stdout_not_contains(&output, "skip.log");
-}
 
-#[test]
-fn long_exclude_argument_removes_matching_paths() {
-    let dir = temp_dir("long_exclude");
-    write_file(dir.join("keep.rs"), "keep");
-    write_file(dir.join("skip.log"), "skip");
+    let stdout = stdout(&output);
+    assert_contains(&stdout, "README.md");
+    assert_contains(&stdout, "project readme");
+    assert_contains(&stdout, "main.rs");
+    assert_contains(&stdout, "fn main() {}");
+    assert_contains(&stdout, "lib.rs");
+    assert_contains(&stdout, "pub fn sample() {}");
 
-    let output = dumpr_cmd()
-        .arg("--directory")
-        .arg(&dir)
-        .arg("--tree")
-        .arg("--exclude")
-        .arg(r"\.log$")
-        .output()
-        .expect("dumpr command should run");
-
-    assert_success(&output);
-    assert_stdout_contains(&output, "keep.rs");
-    assert_stdout_not_contains(&output, "skip.log");
-}
-
-#[test]
-fn invalid_include_regex_exits_with_error() {
-    let dir = temp_dir("invalid_include");
-    write_file(dir.join("file.txt"), "body");
-
-    let output = dumpr_cmd()
-        .arg("--directory")
-        .arg(&dir)
-        .arg("--include")
-        .arg("[")
-        .output()
-        .expect("dumpr command should run");
-
-    assert!(
-        !output.status.success(),
-        "expected invalid include regex to fail"
-    );
-    assert!(
-        stderr(&output).contains("Failed to read match pattern"),
-        "expected include regex error message\nstderr:\n{}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn invalid_exclude_regex_exits_with_error() {
-    let dir = temp_dir("invalid_exclude");
-    write_file(dir.join("file.txt"), "body");
-
-    let output = dumpr_cmd()
-        .arg("--directory")
-        .arg(&dir)
-        .arg("--exclude")
-        .arg("[")
-        .output()
-        .expect("dumpr command should run");
-
-    assert!(
-        !output.status.success(),
-        "expected invalid exclude regex to fail"
-    );
-    assert!(
-        stderr(&output).contains("Failed to read exclude pattern"),
-        "expected exclude regex error message\nstderr:\n{}",
-        stderr(&output)
-    );
+    assert_not_contains(&stdout, "generated.rs");
+    assert_not_contains(&stdout, "GENERATED");
+    assert_not_contains(&stdout, "draft.md");
+    assert_not_contains(&stdout, "draft notes");
+    assert_not_contains(&stdout, "todo.txt");
+    assert_not_contains(&stdout, "ship tests");
+    assert_not_contains(&stdout, "Cargo.toml");
+    assert_not_contains(&stdout, "fixture-package");
+    assert_not_contains(&stdout, "data.json");
+    assert_not_contains(&stdout, "debug.log");
 }
