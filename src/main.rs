@@ -51,17 +51,13 @@ fn main() {
     let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
-    if args.tree {
-        if digest.write_tree(&mut stdout).is_err() {
-            eprintln!("Failed to write the file tree.");
-            std::process::exit(1);
-        }
+    if args.tree && digest.write_tree(&mut stdout).is_err() {
+        eprintln!("Failed to write the file tree.");
+        std::process::exit(1);
     }
-    if args.files {
-        if digest.write_files(&mut stdout).is_err() {
-            eprintln!("Failed to write file contents.");
-            std::process::exit(1);
-        }
+    if args.files && digest.write_files(&mut stdout).is_err() {
+        eprintln!("Failed to write file contents.");
+        std::process::exit(1);
     }
 
     if stdout.flush().is_err() {

@@ -103,7 +103,7 @@ impl FileTree {
 
     fn write_file_names<W: Write>(&self, depth: &str, out: &mut W) -> anyhow::Result<()> {
         for (i, file) in self.files.iter().enumerate() {
-            let prefix = if self.files.len() == i + 1 && self.children.len() == 0 {
+            let prefix = if self.files.len() == i + 1 && self.children.is_empty() {
                 "└── "
             } else {
                 "├── "

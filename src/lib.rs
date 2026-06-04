@@ -25,7 +25,7 @@ impl Digest {
 
         if let Some(include_args) = &options.include {
             for glob in include_args {
-                match override_builder.add(&glob) {
+                match override_builder.add(glob) {
                     Ok(_) => {}
                     Err(_) => eprintln!("Failed to parse glob: {}\nContinuing anyway.", glob),
                 };

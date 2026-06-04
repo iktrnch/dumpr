@@ -164,8 +164,8 @@ dumpr --files --include '\.md$|\.rs$'
 | `-d, --directory <DIRECTORY>` | Directory to read. Defaults to the current directory.                                         |
 | `-t, --tree`                  | Print a tree view of matching files.                                                          |
 | `-f, --files`                 | Print the contents of matching files.                                                         |
-| `-i, --include <INCLUDE>`     | Only include files whose path matches this regex. Defaults to matching all non-ignored paths. |
-| `-e, --exclude <EXCLUDE>`     | Exclude files whose path matches this regex. Defaults to matching nothing.                    |
+| `-i, --include <INCLUDE>`     | Only include files whose path matches this glob. Defaults to matching all non-ignored paths. |
+| `-e, --exclude <EXCLUDE>`     | Exclude files whose path matches this glob. Defaults to matching nothing.                    |
 | `-h, --help`                  | Print command-line help.                                                                      |
 | `-V, --version`               | Print the installed version.                                                                  |
 
