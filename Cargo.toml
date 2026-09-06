@@ -23,4 +23,10 @@ strip = false
 anyhow = "1.0.102"
 clap = { version = "4.5.54", features = ["derive"] }
 ignore = "0.4.25"
-regex = "1.12.3"
+unicode-width = "0.2.2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.183"
+
+[target.'cfg(not(unix))'.dependencies]
+same-file = "1.0.6"

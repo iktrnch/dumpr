@@ -1,29 +1,29 @@
 use clap::Parser;
 use dumpr::{Digest, DigestOptions};
-use std::io::{self, Write};
+use std::io::{self, BufWriter, Write};
 
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Direcotory to digest
+    /// Directory to digest
     #[arg(value_name = "DIRECTORY", default_value = ".")]
     directory: String,
 
-    /// Output file tree structure
+    /// Output the directory tree (with neither output flag, both are printed)
     #[arg(short, long, default_value_t = false, action = clap::ArgAction::SetTrue)]
     tree: bool,
 
-    /// Output file contents
+    /// Output text file contents (with neither output flag, both are printed)
     #[arg(short, long, default_value_t = false, action = clap::ArgAction::SetTrue)]
     files: bool,
 
     /// Only output files that match the glob pattern
     /// Example: --include "*.rs" --include "*.toml" to only include Rust and TOML files
-    #[arg(short, long, default_value = "", value_name = "GLOB")]
+    #[arg(short, long, value_name = "GLOB")]
     include: Option<Vec<String>>,
 
-    /// Exlude files which path matches the regex pattern
-    /// Example: --exclude "*.png" --exclude "*.json" will exlude all PNG and JSON files
+    /// Exclude files whose path matches the glob pattern
+    /// Example: --exclude "*.png" --exclude "*.json" excludes all PNG and JSON files
     #[arg(short, long, value_name = "GLOB")]
     exclude: Option<Vec<String>>,
 }
@@ -38,30 +38,38 @@ impl From<Args> for DigestOptions {
     }
 }
 
-fn main() {
+fn run() -> anyhow::Result<()> {
     let args = Args::parse();
-    let options = DigestOptions::from(args.clone());
+    let write_tree = args.tree || (!args.tree && !args.files);
+    let write_files = args.files || (!args.tree && !args.files);
+    let options = DigestOptions::from(args);
 
-    let mut digest = Digest::new(options);
-    if digest.walk_dirs(&args.directory).is_err() {
-        eprintln!("Failed to parse the directory. Please check the provided path and try again.");
-        std::process::exit(1);
-    };
+    let mut digest = Digest::new(options)?;
+    digest.walk_dirs()?;
 
     let stdout = io::stdout();
-    let mut stdout = stdout.lock();
+    let mut stdout = BufWriter::new(stdout.lock());
 
-    if args.tree && digest.write_tree(&mut stdout).is_err() {
-        eprintln!("Failed to write the file tree.");
-        std::process::exit(1);
+    if write_tree {
+        digest.write_tree(&mut stdout)?;
     }
-    if args.files && digest.write_files(&mut stdout).is_err() {
-        eprintln!("Failed to write file contents.");
-        std::process::exit(1);
+    if write_files {
+        digest.write_files(&mut stdout)?;
     }
+    stdout.flush()?;
+    Ok(())
+}
 
-    if stdout.flush().is_err() {
-        eprintln!("Failed to flush stdout.");
+fn main() {
+    if let Err(error) = run() {
+        if error.chain().any(|cause| {
+            cause
+                .downcast_ref::<io::Error>()
+                .is_some_and(|error| error.kind() == io::ErrorKind::BrokenPipe)
+        }) {
+            return;
+        }
+        eprintln!("error: {error:#}");
         std::process::exit(1);
     }
 }

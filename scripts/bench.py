@@ -23,12 +23,20 @@ HF_MODES = {
     "tree": ["--tree"],
     "files": ["--files"],
     "tree+files": ["--tree", "--files"],
-    "rust-only": ["--tree", "--files", "--include", r"\.rs$"],
+    "rust-only": ["--tree", "--files", "--include", "*.rs"],
     "exclude-generated": [
         "--tree",
         "--files",
         "--exclude",
-        r"target/|node_modules/|dist/|build/|\.git/",
+        "target/**",
+        "--exclude",
+        "node_modules/**",
+        "--exclude",
+        "dist/**",
+        "--exclude",
+        "build/**",
+        "--exclude",
+        ".git/**",
     ],
 }
 
@@ -36,7 +44,7 @@ FG_MODES = {
     "tree": ["--tree"],
     "files": ["--files"],
     "tree_files": ["--tree", "--files"],
-    "rust_only": ["--tree", "--files", "--include", r"\.rs$"],
+    "rust_only": ["--tree", "--files", "--include", "*.rs"],
 }
 
 
@@ -113,8 +121,25 @@ def build_release() -> None:
 def smoke_test(repos: list[dict[str, str]]) -> None:
     cases = [
         ["--tree"],
-        ["--files", "--include", r"(README|Cargo\.toml|package\.json)$"],
-        ["--tree", "--files", "--include", r"(README|Cargo\.toml|package\.json)$"],
+        [
+            "--files",
+            "--include",
+            "README*",
+            "--include",
+            "Cargo.toml",
+            "--include",
+            "package.json",
+        ],
+        [
+            "--tree",
+            "--files",
+            "--include",
+            "README*",
+            "--include",
+            "Cargo.toml",
+            "--include",
+            "package.json",
+        ],
     ]
 
     for repo in repos:
@@ -122,7 +147,7 @@ def smoke_test(repos: list[dict[str, str]]) -> None:
 
         for args in cases:
             run(
-                [str(RELEASE_BIN), "--directory", str(repo_dir), *args],
+                [str(RELEASE_BIN), str(repo_dir), *args],
                 cwd=ROOT,
                 stdout=subprocess.DEVNULL,
             )
@@ -131,7 +156,7 @@ def smoke_test(repos: list[dict[str, str]]) -> None:
 
 
 def dumpr_command(repo_dir: Path, args: list[str]) -> str:
-    parts = [str(RELEASE_BIN), "--directory", str(repo_dir), *args]
+    parts = [str(RELEASE_BIN), str(repo_dir), *args]
     return " ".join(shlex.quote(part) for part in parts) + " > /dev/null"
 
 
@@ -223,7 +248,7 @@ def run_flamegraph(
 
     loop = (
         'i=0; while [ "$i" -lt "$1" ]; do '
-        '"$2" --directory "$3" "${@:4}" > /dev/null; '
+        '"$2" "$3" "${@:4}" > /dev/null; '
         "i=$((i + 1)); done"
     )
     timestamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")

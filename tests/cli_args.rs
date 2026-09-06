@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn dumpr_cmd() -> Command {
@@ -210,4 +210,194 @@ fn tree_and_files_respect_multiple_include_and_exclude_globs() {
     assert_not_contains(&stdout, "fixture-package");
     assert_not_contains(&stdout, "data.json");
     assert_not_contains(&stdout, "debug.log");
+}
+
+#[test]
+fn no_output_flags_defaults_to_tree_and_files() {
+    let dir = sample_project("default_output");
+
+    let implicit = dumpr_cmd()
+        .arg(&dir)
+        .output()
+        .expect("dumpr command should run");
+    let explicit = dumpr_cmd()
+        .arg(&dir)
+        .arg("-t")
+        .arg("-f")
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&implicit);
+    assert_success(&explicit);
+    assert_eq!(implicit.stdout, explicit.stdout);
+    assert_contains(&stdout(&implicit), "fn main() {}");
+}
+
+#[test]
+fn directory_remains_positional_only() {
+    let dir = sample_project("positional_directory");
+    let output = dumpr_cmd()
+        .arg("--directory")
+        .arg(&dir)
+        .arg("--tree")
+        .output()
+        .expect("dumpr command should run");
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert_contains(&stderr(&output), "unexpected argument '--directory'");
+}
+
+#[test]
+fn invalid_root_fails_without_stdout() {
+    let missing = temp_dir("missing_root").join("does-not-exist");
+    let output = dumpr_cmd()
+        .arg(&missing)
+        .output()
+        .expect("dumpr command should run");
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert_contains(&stderr(&output), "cannot access directory");
+    assert_contains(&stderr(&output), missing.to_string_lossy().as_ref());
+}
+
+#[test]
+fn malformed_glob_fails_without_stdout() {
+    let dir = sample_project("malformed_glob");
+    let output = dumpr_cmd()
+        .arg(&dir)
+        .arg("--include")
+        .arg("[")
+        .output()
+        .expect("dumpr command should run");
+
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert_contains(&stderr(&output), "invalid include glob");
+    assert_contains(&stderr(&output), "[");
+}
+
+#[test]
+fn non_text_file_is_skipped_with_path_warning() {
+    let dir = temp_dir("binary_file");
+    let binary = dir.join("binary.dat");
+    fs::write(&binary, [b'a', 0, b'b']).expect("binary fixture should be written");
+    write_file(dir.join("text.txt"), "readable\n");
+
+    let output = dumpr_cmd()
+        .arg(&dir)
+        .arg("--files")
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&output);
+    assert_contains(&stdout(&output), "readable");
+    assert_not_contains(&stdout(&output), "binary.dat");
+    assert_contains(&stderr(&output), "warning: skipped non-text file");
+    assert_contains(&stderr(&output), binary.to_string_lossy().as_ref());
+}
+
+#[cfg(unix)]
+#[test]
+fn symlink_is_skipped_with_path_warning() {
+    use std::os::unix::fs::symlink;
+
+    let dir = temp_dir("symlink");
+    let target = dir.join("target.txt");
+    let link = dir.join("linked.txt");
+    write_file(&target, "target contents\n");
+    symlink(&target, &link).expect("symlink fixture should be created");
+
+    let output = dumpr_cmd()
+        .arg(&dir)
+        .arg("--tree")
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&output);
+    assert_contains(&stdout(&output), "target.txt");
+    assert_not_contains(&stdout(&output), "linked.txt");
+    assert_contains(&stderr(&output), "warning: skipped symlink");
+    assert_contains(&stderr(&output), link.to_string_lossy().as_ref());
+}
+
+#[test]
+fn redirected_output_inside_root_is_excluded_with_warning() {
+    let dir = sample_project("redirected_output");
+    let output_path = dir.join("dump.txt");
+    let output_file = fs::File::create(&output_path).expect("output fixture should be created");
+
+    let output = dumpr_cmd()
+        .arg(&dir)
+        .stdout(Stdio::from(output_file))
+        .stderr(Stdio::piped())
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&output);
+    let dumped = fs::read_to_string(&output_path).expect("redirected output should be readable");
+    assert_not_contains(&dumped, "dump.txt");
+    assert_contains(&stderr(&output), "warning: skipped active output file");
+    assert_contains(&stderr(&output), output_path.to_string_lossy().as_ref());
+}
+
+#[test]
+fn tree_is_sorted_and_does_not_repeat_absolute_root_components() {
+    let dir = temp_dir("sorted_absolute_tree");
+    write_file(dir.join("zeta").join("z.txt"), "z\n");
+    write_file(dir.join("alpha").join("a.txt"), "a\n");
+
+    let output = dumpr_cmd()
+        .arg(&dir)
+        .arg("--tree")
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&output);
+    let stdout = stdout(&output);
+    assert_eq!(stdout.matches(dir.to_string_lossy().as_ref()).count(), 1);
+    assert!(
+        stdout.find("alpha").unwrap() < stdout.find("zeta").unwrap(),
+        "tree should be deterministic and sorted:\n{stdout}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn non_utf8_file_name_does_not_crash_tree_output() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let dir = temp_dir("non_utf8_name");
+    let name = OsString::from_vec(b"invalid-\xff.txt".to_vec());
+    write_file(dir.join(name), "readable\n");
+
+    let output = dumpr_cmd()
+        .arg(&dir)
+        .arg("--tree")
+        .output()
+        .expect("dumpr command should run");
+
+    assert_success(&output);
+    assert_contains(&stdout(&output), "invalid-�.txt");
+}
+
+#[test]
+fn closed_output_pipe_exits_cleanly() {
+    let dir = sample_project("closed_pipe");
+    let mut child = dumpr_cmd()
+        .arg(&dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("dumpr command should start");
+
+    drop(child.stdout.take());
+    let output = child
+        .wait_with_output()
+        .expect("dumpr command should finish");
+
+    assert_success(&output);
+    assert_not_contains(&stderr(&output), "Broken pipe");
 }
