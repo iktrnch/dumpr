@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "dumpr"
-version = "0.3.0"
+version = "1.0.0"
 edition = "2024"
 description = "A small command line tool that turns a directory into a readable text dump. It can print the directory tree, the contents of matching text files, or both."
 license = "MIT"
@@ -12,7 +12,28 @@ repository = "https://github.com/iktrnch/dumpr"
 readme = "README.md"
 keywords = ["cli", "terminal", "copy-paste", "cli-tool", "ai-tools" ]
 categories = ["command-line-utilities", "development-tools"]
-exclude = ["assets/", "benches/", "scripts/"]
+exclude = [
+    "assets/",
+    "benches/",
+    "scripts/",
+    ".github/",
+    "packaging/",
+    "skills-lock.json",
+    "pyrightconfig.json",
+]
+
+[package.metadata.npm]
+name = "dumpr"
+prefix = "@iktrnch/dumpr-"
+bins = ["dumpr"]
+targets = [
+    "x86_64-unknown-linux-musl",
+    "aarch64-unknown-linux-musl",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "aarch64-pc-windows-msvc",
+]
 
 [profile.profiling]
 inherits = "release"

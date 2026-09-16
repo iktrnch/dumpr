@@ -1,0 +1,20 @@
+name: dumpr
+arch: @ARCH@
+platform: linux
+version: "@VERSION@"
+release: "1"
+section: utils
+priority: optional
+maintainer: iktrnch
+description: Turn a project directory into a readable text dump.
+license: MIT
+homepage: https://github.com/iktrnch/dumpr
+contents:
+  - src: @BINARY@
+    dst: /usr/bin/dumpr
+    file_info:
+      mode: 0755
+  - src: README.md
+    dst: /usr/share/doc/dumpr/README.md
+  - src: LICENSE.md
+    dst: /usr/share/doc/dumpr/LICENSE.md

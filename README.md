@@ -76,6 +76,27 @@ or:
 yay -S dumpr
 ```
 
+For the prebuilt release binary (no local Rust compilation), use `dumpr-bin`:
+
+```sh
+paru -S dumpr-bin
+```
+
+### npm / npx
+
+`npx` downloads a platform-specific prebuilt native binary; it does not compile
+Rust during installation.
+
+```sh
+npx dumpr --help
+```
+
+### Debian/Ubuntu and Fedora/RHEL
+
+Each GitHub release includes prebuilt `.deb` and `.rpm` packages for Linux
+x86_64. Download the matching release asset and install it with your normal
+package manager; dumpr does not provide an APT or DNF repository.
+
 ### From source
 
 ```sh
@@ -219,6 +240,35 @@ Format the code:
 ```sh
 cargo fmt
 ```
+
+## Release automation
+
+GitHub Actions builds each release binary once, smoke-tests it, packages the
+same file, and publishes only the tested artifacts. `Cargo.toml` is the single
+release-version source. A pushed `vX.Y.Z` tag must match it exactly.
+
+Run the version check locally:
+
+```sh
+scripts/check-release-version.sh v1.0.0
+```
+
+Install [actionlint](https://github.com/rhysd/actionlint) and validate the
+workflows locally with:
+
+```sh
+scripts/validate-workflows.sh
+```
+
+Use **Actions → Release → Run workflow** for the authoritative dry run. A
+manual run always builds, tests and retains artifacts but cannot publish.
+
+Before the first real release, configure crates.io Trusted Publishing for this
+repository/package. npm publishing is currently disabled while its account
+access is being configured; the workflow still builds and tests the npm
+packages. Add the repository secret `AUR_SSH_PRIVATE_KEY`, whose public key has
+write access to both AUR package repositories. No registry token is stored in
+this repository.
 
 ## Acknowledgements
 

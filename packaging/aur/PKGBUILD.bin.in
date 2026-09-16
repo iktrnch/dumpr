@@ -1,0 +1,18 @@
+pkgname=dumpr-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Turn a project directory into a readable text dump (prebuilt binary)'
+arch=('@ARCH@')
+url='https://github.com/iktrnch/dumpr'
+license=('MIT')
+depends=('gcc-libs')
+provides=('dumpr')
+conflicts=('dumpr')
+source=("dumpr-${pkgver}-@ARCH@.tar.gz::@URL@")
+sha256sums=('@SHA256@')
+
+package() {
+  install -Dm755 "${srcdir}/dumpr-${pkgver}-@TARGET@/dumpr" "${pkgdir}/usr/bin/dumpr"
+  install -Dm644 "${srcdir}/dumpr-${pkgver}-@TARGET@/README.md" "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  install -Dm644 "${srcdir}/dumpr-${pkgver}-@TARGET@/LICENSE.md" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE.md"
+}

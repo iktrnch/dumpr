@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-tag:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - run: scripts/check-release-version.sh '${{ github.ref_name }}'
+
+  test:
+    needs: validate-tag
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.validate-tag.result == 'success')
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
+  github-release:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Create GitHub Release from tested artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create '${{ github.ref_name }}' release-assets/* --generate-notes
+
+  crates-io:
+    needs: [validate-tag, test]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Exchange GitHub OIDC identity for a crates.io token
+        id: crates-auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+
+  aur:
+    needs: [github-release, crates-io]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-x86_64-unknown-linux-musl
+          path: native
+      - name: Configure AUR SSH key
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+      - name: Generate and push AUR package updates
+        run: |
+          version="$(scripts/release-metadata.sh)"
+          source_url="https://github.com/iktrnch/dumpr/archive/refs/tags/v$version.tar.gz"
+          source_sha="$(curl -fsSL "$source_url" | sha256sum | cut -d' ' -f1)"
+          binary_url="https://github.com/iktrnch/dumpr/releases/download/v$version/dumpr-$version-x86_64-unknown-linux-musl.tar.gz"
+          binary_sha="$(sha256sum native/dumpr-*-x86_64-unknown-linux-musl.tar.gz | cut -d' ' -f1)"
+          for kind in source bin; do
+            repo="dumpr"; [ "$kind" = bin ] && repo="dumpr-bin"
+            git clone "ssh://aur@aur.archlinux.org/$repo.git" "$repo"
+            if [ "$kind" = source ]; then url="$source_url"; sha="$source_sha"; else url="$binary_url"; sha="$binary_sha"; fi
+            docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec "
+              pacman -Syu --noconfirm --needed base-devel cargo python
+              useradd -m builder; chown -R builder:builder /work/$repo
+              su builder -c 'cd /work && scripts/generate-aur.sh $kind $repo $url $sha x86_64'
+            "
+            git -C "$repo" add PKGBUILD .SRCINFO
+            git -C "$repo" -c user.name='dumpr release bot' -c user.email='release@users.noreply.github.com' commit -m "update to $version"
+            git -C "$repo" push
+          done
