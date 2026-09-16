@@ -3,14 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   validate-tag:
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -20,14 +18,14 @@ jobs:
 
   test:
     needs: validate-tag
-    if: always() && (github.event_name == 'workflow_dispatch' || needs.validate-tag.result == 'success')
     uses: ./.github/workflows/test.yml
+    with:
+      release: true
     permissions:
       contents: read
 
   github-release:
     needs: test
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -43,7 +41,6 @@ jobs:
 
   crates-io:
     needs: [validate-tag, test]
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -62,7 +59,6 @@ jobs:
 
   aur:
     needs: [github-release, crates-io]
-    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
       contents: read

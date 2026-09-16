@@ -2,7 +2,12 @@ name: Test and package
 
 on:
   workflow_call:
-  workflow_dispatch:
+    inputs:
+      release:
+        description: Run tag-only release builds and package validation
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,12 +23,15 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test --all-features
-      - run: cargo package --list
-      - run: cargo publish --dry-run
+      - if: inputs.release
+        run: cargo package --list
+      - if: inputs.release
+        run: cargo publish --dry-run
       - name: Validate workflow syntax
         uses: docker://rhysd/actionlint:1.7.12
 
   native:
+    if: inputs.release
     name: Native ${{ matrix.target }}
     strategy:
       fail-fast: false
@@ -97,8 +105,6 @@ jobs:
           else
             (cd dist && shasum -a 256 "$archive" > "SHA256SUMS-${{ matrix.target }}.txt")
           fi
-          scripts/generate-npm-packages.sh platform '${{ matrix.target }}' "target/${{ matrix.target }}/release/${{ matrix.executable }}" "npm-${{ matrix.target }}"
-          (cd "npm-${{ matrix.target }}" && npm pack)
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.target }}
@@ -106,10 +112,10 @@ jobs:
             dist/*.tar.gz
             dist/*.zip
             dist/SHA256SUMS-*.txt
-            npm-${{ matrix.target }}/*.tgz
           if-no-files-found: error
 
   linux-packages:
+    if: inputs.release
     needs: native
     runs-on: ubuntu-24.04
     steps:
@@ -146,29 +152,8 @@ jobs:
           name: linux-packages
           path: dist/
 
-  npm-wrapper:
-    needs: native
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: native-x86_64-unknown-linux-musl
-          path: native
-      - name: Pack and test wrapper against packed native dependency
-        run: |
-          scripts/generate-npm-packages.sh wrapper npm-wrapper
-          (cd npm-wrapper && npm pack)
-          mkdir smoke && cd smoke
-          npm install --omit=optional --no-save ../native/npm-x86_64-unknown-linux-musl/*.tgz ../npm-wrapper/*.tgz
-          npx --no-install dumpr --help
-          test "$(npx --no-install dumpr --version)" = "dumpr $(../scripts/release-metadata.sh)"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: npm-wrapper
-          path: npm-wrapper/*.tgz
-
   aur-validation:
+    if: inputs.release
     needs: native
     runs-on: ubuntu-24.04
     steps:

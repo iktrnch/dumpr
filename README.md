@@ -82,15 +82,6 @@ For the prebuilt release binary (no local Rust compilation), use `dumpr-bin`:
 paru -S dumpr-bin
 ```
 
-### npm / npx
-
-`npx` downloads a platform-specific prebuilt native binary; it does not compile
-Rust during installation.
-
-```sh
-npx dumpr --help
-```
-
 ### Debian/Ubuntu and Fedora/RHEL
 
 Each GitHub release includes prebuilt `.deb` and `.rpm` packages for Linux
@@ -260,15 +251,11 @@ workflows locally with:
 scripts/validate-workflows.sh
 ```
 
-Use **Actions → Release → Run workflow** for the authoritative dry run. A
-manual run always builds, tests and retains artifacts but cannot publish.
-
 Before the first real release, configure crates.io Trusted Publishing for this
-repository/package. npm publishing is currently disabled while its account
-access is being configured; the workflow still builds and tests the npm
-packages. Add the repository secret `AUR_SSH_PRIVATE_KEY`, whose public key has
-write access to both AUR package repositories. No registry token is stored in
-this repository.
+repository/package. npm packaging and publishing are currently disabled while
+its account access is being configured. Add the repository secret
+`AUR_SSH_PRIVATE_KEY`, whose public key has write access to both AUR package
+repositories. No registry token is stored in this repository.
 
 ## Acknowledgements
 
