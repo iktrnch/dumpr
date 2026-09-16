@@ -38,7 +38,7 @@ jobs:
             cross: true
             executable: dumpr
           - target: x86_64-apple-darwin
-            runner: macos-13
+            runner: macos-15-intel
             cross: false
             executable: dumpr
           - target: aarch64-apple-darwin
@@ -86,11 +86,13 @@ jobs:
           cp "target/${{ matrix.target }}/release/${{ matrix.executable }}" "$stage/"
           cp README.md LICENSE.md "$stage/"
           if [ '${{ matrix.executable }}' = 'dumpr.exe' ]; then
-            (cd dist && 7z a "dumpr-$version-${{ matrix.target }}.zip" "dumpr-$version-${{ matrix.target }}")
+            archive="dumpr-$version-${{ matrix.target }}.zip"
+            (cd dist && 7z a "$archive" "dumpr-$version-${{ matrix.target }}")
           else
-            tar -C dist -czf "dist/dumpr-$version-${{ matrix.target }}.tar.gz" "dumpr-$version-${{ matrix.target }}"
+            archive="dumpr-$version-${{ matrix.target }}.tar.gz"
+            tar -C dist -czf "dist/$archive" "dumpr-$version-${{ matrix.target }}"
           fi
-          (cd dist && sha256sum *.* > "SHA256SUMS-${{ matrix.target }}.txt")
+          (cd dist && sha256sum -- "$archive" > "SHA256SUMS-${{ matrix.target }}.txt")
           scripts/generate-npm-packages.sh platform '${{ matrix.target }}' "target/${{ matrix.target }}/release/${{ matrix.executable }}" "npm-${{ matrix.target }}"
           (cd "npm-${{ matrix.target }}" && npm pack)
       - uses: actions/upload-artifact@v4
@@ -133,7 +135,7 @@ jobs:
             test -x /usr/bin/dumpr; dumpr --help
             test "$(dumpr --version)" = "dumpr '"$(scripts/release-metadata.sh)'"'
           '
-      - run: (cd dist && sha256sum * > SHA256SUMS-linux-packages.txt)
+      - run: (cd dist && sha256sum -- ./*.deb ./*.rpm > SHA256SUMS-linux-packages.txt)
       - uses: actions/upload-artifact@v4
         with:
           name: linux-packages

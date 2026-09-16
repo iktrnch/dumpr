@@ -247,6 +247,14 @@ fn is_utf8_text(file: &mut File) -> io::Result<bool> {
 struct OutputFile(Option<(u64, u64)>);
 
 #[cfg(unix)]
+fn output_file_device_id<T>(device: T) -> Option<u64>
+where
+    u64: TryFrom<T>,
+{
+    u64::try_from(device).ok()
+}
+
+#[cfg(unix)]
 impl OutputFile {
     fn stdout() -> Self {
         use std::mem::MaybeUninit;
@@ -265,7 +273,7 @@ impl OutputFile {
             return OutputFile(None);
         }
 
-        OutputFile(Some((stat.st_dev, stat.st_ino)))
+        OutputFile(output_file_device_id(stat.st_dev).map(|device| (device, stat.st_ino)))
     }
 
     fn matches(&self, path: &Path) -> bool {
@@ -361,5 +369,12 @@ mod tests {
         assert_eq!(top_border.matches('─').count(), expected_dashes);
 
         fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_file_device_id_rejects_negative_values() {
+        assert_eq!(output_file_device_id(-1_i32), None);
+        assert_eq!(output_file_device_id(42_i32), Some(42));
     }
 }
