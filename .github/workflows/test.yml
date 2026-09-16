@@ -118,12 +118,13 @@ jobs:
         with:
           name: native-x86_64-unknown-linux-musl
           path: input
-      - uses: goreleaser/nfpm-action@v1
-        with:
-          version: latest
+      - name: Install nFPM
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Extract exact tested binary and package it
         run: |
-          tar -xzf input/dumpr-*-x86_64-unknown-linux-musl.tar.gz -C input
+          tar -xzf input/dist/dumpr-*-x86_64-unknown-linux-musl.tar.gz -C input
           scripts/package-linux.sh input/dumpr-*-x86_64-unknown-linux-musl/dumpr amd64 dist
       - name: Test Debian package in clean Ubuntu
         run: |
@@ -159,7 +160,7 @@ jobs:
           scripts/generate-npm-packages.sh wrapper npm-wrapper
           (cd npm-wrapper && npm pack)
           mkdir smoke && cd smoke
-          npm install --omit=optional --no-save ../native/*.tgz ../npm-wrapper/*.tgz
+          npm install --omit=optional --no-save ../native/npm-x86_64-unknown-linux-musl/*.tgz ../npm-wrapper/*.tgz
           npx --no-install dumpr --help
           test "$(npx --no-install dumpr --version)" = "dumpr $(../scripts/release-metadata.sh)"
       - uses: actions/upload-artifact@v4
@@ -181,7 +182,7 @@ jobs:
           version="$(scripts/release-metadata.sh)"
           mkdir -p aur-fixtures
           git archive --format=tar.gz --prefix="dumpr-$version/" -o "aur-fixtures/dumpr-$version.tar.gz" HEAD
-          tar -xzf native/dumpr-*-x86_64-unknown-linux-musl.tar.gz -C aur-fixtures
+          tar -xzf native/dist/dumpr-*-x86_64-unknown-linux-musl.tar.gz -C aur-fixtures
           tar -C aur-fixtures -czf aur-fixtures/dumpr-bin.tar.gz "dumpr-$version-x86_64-unknown-linux-musl"
           chmod -R a+rwx aur-fixtures
           docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
