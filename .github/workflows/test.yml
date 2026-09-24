@@ -145,10 +145,10 @@ jobs:
             unpacked="native/unpacked/$target"
             mkdir -p "$unpacked"
             if [ "$target" = x86_64-pc-windows-msvc ]; then
-              unzip -q "native/native-$target/dist/dumpr-$version-$target.zip" -d "$unpacked"
+              unzip -q "native/native-$target/dumpr-$version-$target.zip" -d "$unpacked"
               executable=dumpr.exe
             else
-              tar -xzf "native/native-$target/dist/dumpr-$version-$target.tar.gz" -C "$unpacked"
+              tar -xzf "native/native-$target/dumpr-$version-$target.tar.gz" -C "$unpacked"
               executable=dumpr
             fi
             scripts/generate-npm-packages.sh platform "$target" \
@@ -208,7 +208,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Extract exact tested binary and package it
         run: |
-          tar -xzf input/dist/dumpr-*-x86_64-unknown-linux-musl.tar.gz -C input
+          tar -xzf input/dumpr-*-x86_64-unknown-linux-musl.tar.gz -C input
           scripts/package-linux.sh input/dumpr-*-x86_64-unknown-linux-musl/dumpr amd64 dist
       - name: Test Debian package in clean Ubuntu
         run: |
@@ -245,7 +245,7 @@ jobs:
           version="$(scripts/release-metadata.sh)"
           mkdir -p aur-fixtures
           git archive --format=tar.gz --prefix="dumpr-$version/" -o "aur-fixtures/dumpr-$version.tar.gz" HEAD
-          cp native/dist/dumpr-*-x86_64-unknown-linux-musl.tar.gz aur-fixtures/dumpr-bin.tar.gz
+          cp native/dumpr-*-x86_64-unknown-linux-musl.tar.gz aur-fixtures/dumpr-bin.tar.gz
           chmod -R a+rwx aur-fixtures
           docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
             pacman -Syu --noconfirm --needed cargo python namcap

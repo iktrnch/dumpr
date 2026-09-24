@@ -159,7 +159,7 @@ jobs:
           source_url="https://github.com/iktrnch/dumpr/archive/refs/tags/v$version.tar.gz"
           source_sha="$(curl -fsSL "$source_url" | sha256sum | cut -d' ' -f1)"
           binary_url="https://github.com/iktrnch/dumpr/releases/download/v$version/dumpr-$version-x86_64-unknown-linux-musl.tar.gz"
-          binary_sha="$(sha256sum native/dist/dumpr-*-x86_64-unknown-linux-musl.tar.gz | cut -d' ' -f1)"
+          binary_sha="$(sha256sum native/dumpr-*-x86_64-unknown-linux-musl.tar.gz | cut -d' ' -f1)"
           for kind in source bin; do
             repo="dumpr"; [ "$kind" = bin ] && repo="dumpr-bin"
             git clone "ssh://aur@aur.archlinux.org/$repo.git" "$repo"
