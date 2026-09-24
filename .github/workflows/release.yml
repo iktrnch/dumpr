@@ -105,7 +105,6 @@ jobs:
           platform_filenames=(
             "iktrnch-dumpr-linux-x64-$version.tgz"
             "iktrnch-dumpr-linux-arm64-$version.tgz"
-            "iktrnch-dumpr-darwin-x64-$version.tgz"
             "iktrnch-dumpr-darwin-arm64-$version.tgz"
             "iktrnch-dumpr-win32-x64-$version.tgz"
           )
@@ -120,8 +119,8 @@ jobs:
           wrapper_package="$resolved"
 
           mapfile -t all_packages < <(find npm-artifacts -type f -name '*.tgz' | sort)
-          if [ "${#all_packages[@]}" -ne 6 ]; then
-            echo "::error::Expected exactly six npm artifacts; found ${#all_packages[@]}" >&2
+          if [ "${#all_packages[@]}" -ne 5 ]; then
+            echo "::error::Expected exactly five npm artifacts; found ${#all_packages[@]}" >&2
             printf 'npm artifact: %s\n' "${all_packages[@]}" >&2
             exit 1
           fi

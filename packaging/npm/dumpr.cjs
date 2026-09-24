@@ -4,7 +4,7 @@ const { spawnSync } = require('node:child_process');
 const { join } = require('node:path');
 const packages = {
   'linux-x64': '@iktrnch/dumpr-linux-x64', 'linux-arm64': '@iktrnch/dumpr-linux-arm64',
-  'darwin-x64': '@iktrnch/dumpr-darwin-x64', 'darwin-arm64': '@iktrnch/dumpr-darwin-arm64',
+  'darwin-arm64': '@iktrnch/dumpr-darwin-arm64',
   'win32-x64': '@iktrnch/dumpr-win32-x64',
 };
 const packageName = packages[`${process.platform}-${process.arch}`];

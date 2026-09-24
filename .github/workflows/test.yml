@@ -45,10 +45,6 @@ jobs:
             runner: ubuntu-24.04-arm
             cross: false
             executable: dumpr
-          - target: x86_64-apple-darwin
-            runner: macos-15-intel
-            cross: false
-            executable: dumpr
           - target: aarch64-apple-darwin
             runner: macos-14
             cross: false
@@ -138,7 +134,6 @@ jobs:
           for target in \
             x86_64-unknown-linux-musl \
             aarch64-unknown-linux-musl \
-            x86_64-apple-darwin \
             aarch64-apple-darwin \
             x86_64-pc-windows-msvc
           do
@@ -175,11 +170,10 @@ jobs:
           version="$(scripts/release-metadata.sh)"
           mkdir npm-dist
           find npm-packages -type f -name '*.tgz' -exec cp -- {} npm-dist/ \;
-          test "$(find npm-dist -maxdepth 1 -type f -name '*.tgz' | wc -l)" -eq 6
+          test "$(find npm-dist -maxdepth 1 -type f -name '*.tgz' | wc -l)" -eq 5
           for artifact in \
             "iktrnch-dumpr-linux-x64-$version.tgz" \
             "iktrnch-dumpr-linux-arm64-$version.tgz" \
-            "iktrnch-dumpr-darwin-x64-$version.tgz" \
             "iktrnch-dumpr-darwin-arm64-$version.tgz" \
             "iktrnch-dumpr-win32-x64-$version.tgz" \
             "iktrnch-dumpr-$version.tgz"
@@ -212,17 +206,25 @@ jobs:
           scripts/package-linux.sh input/dumpr-*-x86_64-unknown-linux-musl/dumpr amd64 dist
       - name: Test Debian package in clean Ubuntu
         run: |
-          docker run --rm -v "$PWD/dist:/packages:ro" ubuntu:24.04 bash -ec '
+          expected_version="$(scripts/release-metadata.sh)"
+          docker run --rm \
+            --env DUMPR_EXPECTED_VERSION="$expected_version" \
+            -v "$PWD/dist:/packages:ro" \
+            ubuntu:24.04 bash -ec '
             apt-get update; apt-get install -y /packages/*.deb
             test -x /usr/bin/dumpr; dumpr --help
-            test "$(dumpr --version)" = "dumpr '"$(scripts/release-metadata.sh)'"'
+            test "$(dumpr --version)" = "dumpr $DUMPR_EXPECTED_VERSION"
           '
       - name: Test RPM in clean Fedora
         run: |
-          docker run --rm -v "$PWD/dist:/packages:ro" fedora:latest bash -ec '
+          expected_version="$(scripts/release-metadata.sh)"
+          docker run --rm \
+            --env DUMPR_EXPECTED_VERSION="$expected_version" \
+            -v "$PWD/dist:/packages:ro" \
+            fedora:latest bash -ec '
             dnf install -y /packages/*.rpm
             test -x /usr/bin/dumpr; dumpr --help
-            test "$(dumpr --version)" = "dumpr '"$(scripts/release-metadata.sh)'"'
+            test "$(dumpr --version)" = "dumpr $DUMPR_EXPECTED_VERSION"
           '
       - run: (cd dist && sha256sum -- ./*.deb ./*.rpm > SHA256SUMS-linux-packages.txt)
       - uses: actions/upload-artifact@v4
@@ -250,7 +252,8 @@ jobs:
           docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
             pacman -Syu --noconfirm --needed cargo python namcap
             useradd -m builder
-            chown -R builder:builder /work/aur-fixtures
+            mkdir -p /work/aur-source /work/aur-bin
+            chown -R builder:builder /work/aur-fixtures /work/aur-source /work/aur-bin
             su builder -c "cd /work && scripts/generate-aur.sh source aur-source file:///work/aur-fixtures/dumpr-'"$version"'.tar.gz $(sha256sum aur-fixtures/dumpr-'"$version"'.tar.gz | cut -d\  -f1)"
             su builder -c "cd /work/aur-source && makepkg -f --noconfirm && namcap *.pkg.tar.zst"
             pacman -U --noconfirm /work/aur-source/*.pkg.tar.zst
