@@ -252,13 +252,18 @@ jobs:
           docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
             pacman -Syu --noconfirm --needed cargo python namcap
             useradd -m builder
-            mkdir -p /work/aur-source /work/aur-bin
-            chown -R builder:builder /work/aur-fixtures /work/aur-source /work/aur-bin
+            mkdir -p /work/aur-source
+            chown -R builder:builder /work/aur-fixtures /work/aur-source
             su builder -c "cd /work && scripts/generate-aur.sh source aur-source file:///work/aur-fixtures/dumpr-'"$version"'.tar.gz $(sha256sum aur-fixtures/dumpr-'"$version"'.tar.gz | cut -d\  -f1)"
             su builder -c "cd /work/aur-source && makepkg -f --noconfirm && namcap *.pkg.tar.zst"
             pacman -U --noconfirm /work/aur-source/*.pkg.tar.zst
             dumpr --help; test "$(dumpr --version)" = "dumpr '"$version"'"
-            pacman -Rns --noconfirm dumpr
+          '
+          docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
+            pacman -Syu --noconfirm --needed cargo python namcap
+            useradd -m builder
+            mkdir -p /work/aur-bin
+            chown -R builder:builder /work/aur-fixtures /work/aur-bin
             su builder -c "cd /work && scripts/generate-aur.sh bin aur-bin file:///work/aur-fixtures/dumpr-bin.tar.gz $(sha256sum aur-fixtures/dumpr-bin.tar.gz | cut -d\  -f1) x86_64"
             su builder -c "cd /work/aur-bin && makepkg -f --noconfirm && namcap *.pkg.tar.zst"
             pacman -U --noconfirm /work/aur-bin/*.pkg.tar.zst
