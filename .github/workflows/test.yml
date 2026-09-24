@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       release:
-        description: Run tag-only release builds and package validation
+        description: Run release builds and package validation
         required: false
         type: boolean
         default: false
@@ -42,8 +42,8 @@ jobs:
             cross: true
             executable: dumpr
           - target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04
-            cross: true
+            runner: ubuntu-24.04-arm
+            cross: false
             executable: dumpr
           - target: x86_64-apple-darwin
             runner: macos-15-intel
@@ -114,6 +114,84 @@ jobs:
             dist/SHA256SUMS-*.txt
           if-no-files-found: error
 
+  npm-packages:
+    if: inputs.release
+    needs: native
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+      - run: npm install -g npm@^11.15.0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: native
+      - name: Generate npm packages from tested binaries
+        run: |
+          version="$(scripts/release-metadata.sh)"
+          mkdir -p npm-packages
+          for target in \
+            x86_64-unknown-linux-musl \
+            aarch64-unknown-linux-musl \
+            x86_64-apple-darwin \
+            aarch64-apple-darwin \
+            x86_64-pc-windows-msvc
+          do
+            unpacked="native/unpacked/$target"
+            mkdir -p "$unpacked"
+            if [ "$target" = x86_64-pc-windows-msvc ]; then
+              unzip -q "native/native-$target/dist/dumpr-$version-$target.zip" -d "$unpacked"
+              executable=dumpr.exe
+            else
+              tar -xzf "native/native-$target/dist/dumpr-$version-$target.tar.gz" -C "$unpacked"
+              executable=dumpr
+            fi
+            scripts/generate-npm-packages.sh platform "$target" \
+              "$unpacked/dumpr-$version-$target/$executable" \
+              "npm-packages/$target"
+          done
+          scripts/generate-npm-packages.sh wrapper npm-packages/wrapper
+      - name: Pack npm packages
+        run: |
+          for package in npm-packages/*; do
+            (cd "$package" && npm pack)
+          done
+      - name: Smoke test packed Linux package and wrapper
+        run: |
+          mkdir npm-smoke
+          cd npm-smoke
+          npm install --omit=optional --no-save \
+            ../npm-packages/x86_64-unknown-linux-musl/iktrnch-dumpr-linux-x64-*.tgz \
+            ../npm-packages/wrapper/iktrnch-dumpr-*.tgz
+          npx --no-install dumpr --help
+          test "$(npx --no-install dumpr --version)" = "dumpr $(../scripts/release-metadata.sh)"
+      - name: Collect packed npm artifacts
+        run: |
+          version="$(scripts/release-metadata.sh)"
+          mkdir npm-dist
+          find npm-packages -type f -name '*.tgz' -exec cp -- {} npm-dist/ \;
+          test "$(find npm-dist -maxdepth 1 -type f -name '*.tgz' | wc -l)" -eq 6
+          for artifact in \
+            "iktrnch-dumpr-linux-x64-$version.tgz" \
+            "iktrnch-dumpr-linux-arm64-$version.tgz" \
+            "iktrnch-dumpr-darwin-x64-$version.tgz" \
+            "iktrnch-dumpr-darwin-arm64-$version.tgz" \
+            "iktrnch-dumpr-win32-x64-$version.tgz" \
+            "iktrnch-dumpr-$version.tgz"
+          do
+            test -f "npm-dist/$artifact"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-packages
+          path: npm-dist/*.tgz
+          if-no-files-found: error
+
   linux-packages:
     if: inputs.release
     needs: native
@@ -167,8 +245,7 @@ jobs:
           version="$(scripts/release-metadata.sh)"
           mkdir -p aur-fixtures
           git archive --format=tar.gz --prefix="dumpr-$version/" -o "aur-fixtures/dumpr-$version.tar.gz" HEAD
-          tar -xzf native/dist/dumpr-*-x86_64-unknown-linux-musl.tar.gz -C aur-fixtures
-          tar -C aur-fixtures -czf aur-fixtures/dumpr-bin.tar.gz "dumpr-$version-x86_64-unknown-linux-musl"
+          cp native/dist/dumpr-*-x86_64-unknown-linux-musl.tar.gz aur-fixtures/dumpr-bin.tar.gz
           chmod -R a+rwx aur-fixtures
           docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
             pacman -Syu --noconfirm --needed cargo python namcap

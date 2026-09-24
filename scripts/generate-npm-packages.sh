@@ -7,7 +7,7 @@ case "$mode" in
   wrapper)
     [[ $# -eq 1 ]] || usage; out="$1"; mkdir -p "$out/bin"
     cat > "$out/package.json" <<EOF
-{"name":"dumpr","version":"$version","description":"Native launcher for dumpr","license":"MIT","repository":{"type":"git","url":"https://github.com/iktrnch/dumpr.git"},"bin":{"dumpr":"bin/dumpr.cjs"},"files":["bin"],"optionalDependencies":{"@iktrnch/dumpr-linux-x64":"$version","@iktrnch/dumpr-linux-arm64":"$version","@iktrnch/dumpr-darwin-x64":"$version","@iktrnch/dumpr-darwin-arm64":"$version","@iktrnch/dumpr-win32-x64":"$version"}}
+{"name":"@iktrnch/dumpr","version":"$version","description":"Native launcher for dumpr","license":"MIT","repository":{"type":"git","url":"https://github.com/iktrnch/dumpr"},"bin":{"dumpr":"bin/dumpr.cjs"},"files":["bin"],"optionalDependencies":{"@iktrnch/dumpr-linux-x64":"$version","@iktrnch/dumpr-linux-arm64":"$version","@iktrnch/dumpr-darwin-x64":"$version","@iktrnch/dumpr-darwin-arm64":"$version","@iktrnch/dumpr-win32-x64":"$version"}}
 EOF
     cp packaging/npm/dumpr.cjs "$out/bin/dumpr.cjs" ;;
   platform)
@@ -21,6 +21,6 @@ EOF
       *) echo "unsupported npm target: $target" >&2; exit 2 ;;
     esac
     mkdir -p "$out/bin"; cp "$binary" "$out/bin/$exe"; chmod +x "$out/bin/$exe" 2>/dev/null || true
-    printf '{"name":"%s","version":"%s","description":"Native dumpr binary for %s","license":"MIT","repository":{"type":"git","url":"https://github.com/iktrnch/dumpr.git"},"os":["%s"],"cpu":["%s"],"files":["bin"]}\n' "$package" "$version" "$target" "$os" "$cpu" > "$out/package.json" ;;
+    printf '{"name":"%s","version":"%s","description":"Native dumpr binary for %s","license":"MIT","repository":{"type":"git","url":"https://github.com/iktrnch/dumpr"},"os":["%s"],"cpu":["%s"],"files":["bin"]}\n' "$package" "$version" "$target" "$os" "$cpu" > "$out/package.json" ;;
   *) usage ;;
 esac

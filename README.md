@@ -251,11 +251,15 @@ workflows locally with:
 scripts/validate-workflows.sh
 ```
 
+Use **Actions → Release → Run workflow** to run the complete release build and
+package validation without publishing. Registry and AUR publishing only run for
+matching tag pushes.
+
 Before the first real release, configure crates.io Trusted Publishing for this
-repository/package. npm packaging and publishing are currently disabled while
-its account access is being configured. Add the repository secret
-`AUR_SSH_PRIVATE_KEY`, whose public key has write access to both AUR package
-repositories. No registry token is stored in this repository.
+repository/package and npm Trusted Publishing for `@iktrnch/dumpr` and each
+public `@iktrnch/dumpr-*` package. Add the repository secret `AUR_SSH_PRIVATE_KEY`,
+whose public key has write access to both AUR package repositories. No registry
+token is stored in this repository.
 
 ## Acknowledgements
 

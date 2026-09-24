@@ -23,7 +23,7 @@ exclude = [
 ]
 
 [package.metadata.npm]
-name = "dumpr"
+name = "@iktrnch/dumpr"
 prefix = "@iktrnch/dumpr-"
 bins = ["dumpr"]
 targets = [
