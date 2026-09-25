@@ -8,7 +8,7 @@ package = next(package for package in metadata["packages"] if package["name"] ==
 print(package["version"])
 ')"
 
-TAG="${1:?usage: scripts/check-release-version.sh vX.Y.Z}"
+TAG="${1:?usage: scripts/ci/check-release-version.sh vX.Y.Z}"
 TAG="${TAG#v}"
 
 [[ "$VERSION" == "$TAG" ]] || {

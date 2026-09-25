@@ -24,38 +24,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Validate release tag version
         if: github.ref_type == 'tag'
-        run: scripts/check-release-version.sh '${{ github.ref_name }}'
+        run: scripts/ci/check-release-version.sh '${{ github.ref_name }}'
       - name: Find successful main CI run for exact commit
         id: ci_run
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          commit_sha="$(git rev-parse 'HEAD^{commit}')"
-          runs="$(gh api --method GET \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
-            -f head_sha="$commit_sha" \
-            -f branch=main \
-            -f event=push \
-            -f status=success \
-            -f per_page=100)"
-          ci_run_id="$(jq -r --arg sha "$commit_sha" '
-            [
-              .workflow_runs[]
-              | select(.head_sha == $sha)
-              | select(.event == "push")
-              | select(.head_branch == "main")
-              | select(.conclusion == "success")
-            ]
-            | max_by(.id)
-            | .id // empty
-          ' <<<"$runs")"
-          if ! [[ "$ci_run_id" =~ ^[0-9]+$ ]]; then
-            echo "::error::No successful CI push run on main exists for commit $commit_sha." >&2
-            echo "::error::Push this exact commit to main and wait for CI to succeed before creating a release tag." >&2
-            exit 1
-          fi
-          echo "Resolved commit $commit_sha to successful CI run $ci_run_id"
-          echo "ci_run_id=$ci_run_id" >> "$GITHUB_OUTPUT"
+        run: scripts/ci/find-successful-ci-run.sh ci.yml main
 
   github-release:
     needs: prepare
@@ -67,6 +41,9 @@ jobs:
     outputs:
       ci_run_id: ${{ needs.prepare.outputs.ci_run_id }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
       - uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
@@ -77,14 +54,7 @@ jobs:
       - name: Create GitHub Release from tested artifacts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          mapfile -t assets < <(find release-assets -type f | sort)
-          test "${#assets[@]}" -gt 0
-          gh release create '${{ github.ref_name }}' \
-            --repo "$GITHUB_REPOSITORY" \
-            --verify-tag \
-            --generate-notes \
-            "${assets[@]}"
+        run: scripts/ci/create-github-release.sh '${{ github.ref_name }}' release-assets
 
   crates-io:
     needs: github-release
@@ -114,6 +84,9 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
       - uses: actions/setup-node@v6
         with:
           node-version: "24"
@@ -128,59 +101,7 @@ jobs:
           name: npm-packages
           path: npm-artifacts
       - name: Publish exact tested npm packages
-        run: |
-          case "$GITHUB_REF_NAME" in
-            v*) version="${GITHUB_REF_NAME#v}" ;;
-            *) echo "::error::Expected a v-prefixed release tag, got: $GITHUB_REF_NAME" >&2; exit 1 ;;
-          esac
-          artifact_root="$GITHUB_WORKSPACE/npm-artifacts"
-
-          resolve_exact() {
-            local filename="$1"
-            mapfile -t matches < <(find "$artifact_root" -type f -name "$filename" | sort)
-            if [ "${#matches[@]}" -ne 1 ]; then
-              echo "::error::Expected exactly one npm artifact named $filename; found ${#matches[@]}" >&2
-              printf 'Matched artifact: %s\n' "${matches[@]}" >&2
-              return 1
-            fi
-            resolved="${matches[0]}"
-          }
-
-          platform_filenames=(
-            "iktrnch-dumpr-linux-x64-$version.tgz"
-            "iktrnch-dumpr-linux-arm64-$version.tgz"
-            "iktrnch-dumpr-darwin-arm64-$version.tgz"
-            "iktrnch-dumpr-win32-x64-$version.tgz"
-          )
-          platform_packages=()
-          for filename in "${platform_filenames[@]}"; do
-            resolve_exact "$filename"
-            platform_packages+=("$resolved")
-          done
-
-          wrapper_filenames=(
-            "iktrnch-dumpr-$version.tgz"
-            "dumpr-cli-$version.tgz"
-          )
-          wrapper_packages=()
-          for filename in "${wrapper_filenames[@]}"; do
-            resolve_exact "$filename"
-            wrapper_packages+=("$resolved")
-          done
-
-          mapfile -t all_packages < <(find "$artifact_root" -type f -name '*.tgz' | sort)
-          if [ "${#all_packages[@]}" -ne 6 ]; then
-            echo "::error::Expected exactly six npm artifacts; found ${#all_packages[@]}" >&2
-            printf 'npm artifact: %s\n' "${all_packages[@]}" >&2
-            exit 1
-          fi
-
-          for package in "${platform_packages[@]}"; do
-            npm publish "$package"
-          done
-          for package in "${wrapper_packages[@]}"; do
-            npm publish "$package"
-          done
+        run: scripts/ci/publish-npm.sh "$GITHUB_REF_NAME" "$GITHUB_WORKSPACE/npm-artifacts"
 
   aur:
     needs: github-release
@@ -203,39 +124,6 @@ jobs:
       - name: Configure AUR SSH key
         env:
           AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+        run: scripts/ci/configure-aur-ssh.sh
       - name: Generate and push AUR package updates
-        run: |
-          version="$(scripts/release-metadata.sh)"
-          source_url="https://github.com/iktrnch/dumpr/archive/refs/tags/v$version.tar.gz"
-          source_sha="$(curl -fsSL "$source_url" | sha256sum | cut -d' ' -f1)"
-          binary_url="https://github.com/iktrnch/dumpr/releases/download/v$version/dumpr-$version-x86_64-unknown-linux-musl.tar.gz"
-          binary_sha="$(sha256sum native/dumpr-*-x86_64-unknown-linux-musl.tar.gz | cut -d' ' -f1)"
-          for kind in source bin; do
-            repo="dumpr"; [ "$kind" = bin ] && repo="dumpr-bin"
-            git clone "ssh://aur@aur.archlinux.org/$repo.git" "$repo"
-            if [ "$kind" = source ]; then url="$source_url"; sha="$source_sha"; else url="$binary_url"; sha="$binary_sha"; fi
-            stage="$(mktemp -d "$RUNNER_TEMP/aur-$kind.XXXXXX")"
-            chmod 0777 "$stage"
-            trap 'rm -rf "$stage"' EXIT
-            docker run --rm \
-              -v "$PWD:/work:ro" \
-              -v "$stage:/output" \
-              -w /work \
-              archlinux:base-devel bash -ec "
-              pacman -Syu --noconfirm --needed base-devel cargo python
-              useradd -m builder
-              su builder -c 'cd /work && scripts/generate-aur.sh $kind /output $url $sha x86_64'
-            "
-            install -m 0644 "$stage/PKGBUILD" "$repo/PKGBUILD"
-            install -m 0644 "$stage/.SRCINFO" "$repo/.SRCINFO"
-            rm -rf "$stage"
-            trap - EXIT
-            git -C "$repo" add PKGBUILD .SRCINFO
-            git -C "$repo" -c user.name='dumpr release bot' -c user.email='release@users.noreply.github.com' commit -m "update to $version"
-            git -C "$repo" push
-          done
+        run: scripts/ci/publish-aur.sh

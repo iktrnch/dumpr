@@ -4,7 +4,7 @@
 set -euo pipefail
 kind="${1:?package kind required}"; out="${2:?output directory required}"
 url="${3:?source URL required}"; sha256="${4:?sha256 required}"; arch="${5:-x86_64}"
-version="$(scripts/release-metadata.sh)"; template="packaging/aur/PKGBUILD.${kind}.in"
+version="$(scripts/ci/release-metadata.sh)"; template="packaging/aur/PKGBUILD.${kind}.in"
 [[ -f "$template" ]] || { echo "unknown AUR package kind: $kind" >&2; exit 2; }
 mkdir -p "$out"
 case "$arch" in x86_64) target=x86_64-unknown-linux-musl ;; aarch64) target=aarch64-unknown-linux-musl ;; *) echo "unsupported AUR arch: $arch" >&2; exit 2 ;; esac

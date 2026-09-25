@@ -67,40 +67,14 @@ jobs:
         run: cargo install --locked cargo-zigbuild
       - name: Build release binary
         shell: bash
-        run: |
-          if [ '${{ matrix.cross }}' = true ]; then
-            cargo zigbuild --release --target '${{ matrix.target }}'
-          else
-            cargo build --release --target '${{ matrix.target }}'
-          fi
+        run: scripts/ci/build-native.sh '${{ matrix.target }}' '${{ matrix.cross }}'
       - name: Smoke test runnable binary
         if: matrix.cross == false || matrix.target == 'x86_64-unknown-linux-musl'
         shell: bash
-        run: |
-          version="$(scripts/release-metadata.sh)"
-          binary="target/${{ matrix.target }}/release/${{ matrix.executable }}"
-          "$binary" --help
-          test "$("$binary" --version)" = "dumpr $version"
+        run: scripts/ci/test-native.sh '${{ matrix.target }}' '${{ matrix.executable }}'
       - name: Archive and checksum
         shell: bash
-        run: |
-          version="$(scripts/release-metadata.sh)"
-          stage="dist/dumpr-$version-${{ matrix.target }}"
-          mkdir -p "$stage"
-          cp "target/${{ matrix.target }}/release/${{ matrix.executable }}" "$stage/"
-          cp README.md LICENSE.md "$stage/"
-          if [ '${{ matrix.executable }}' = 'dumpr.exe' ]; then
-            archive="dumpr-$version-${{ matrix.target }}.zip"
-            (cd dist && 7z a "$archive" "dumpr-$version-${{ matrix.target }}")
-          else
-            archive="dumpr-$version-${{ matrix.target }}.tar.gz"
-            tar -C dist -czf "dist/$archive" "dumpr-$version-${{ matrix.target }}"
-          fi
-          if command -v sha256sum >/dev/null; then
-            (cd dist && sha256sum -- "$archive" > "SHA256SUMS-${{ matrix.target }}.txt")
-          else
-            (cd dist && shasum -a 256 "$archive" > "SHA256SUMS-${{ matrix.target }}.txt")
-          fi
+        run: scripts/ci/package-native.sh '${{ matrix.target }}' '${{ matrix.executable }}'
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ matrix.target }}
@@ -127,93 +101,12 @@ jobs:
         with:
           pattern: native-*
           path: native
-      - name: Generate npm packages from tested binaries
-        run: |
-          version="$(scripts/release-metadata.sh)"
-          mkdir -p npm-packages
-          for target in \
-            x86_64-unknown-linux-musl \
-            aarch64-unknown-linux-musl \
-            aarch64-apple-darwin \
-            x86_64-pc-windows-msvc
-          do
-            unpacked="native/unpacked/$target"
-            mkdir -p "$unpacked"
-            if [ "$target" = x86_64-pc-windows-msvc ]; then
-              unzip -q "native/native-$target/dumpr-$version-$target.zip" -d "$unpacked"
-              executable=dumpr.exe
-            else
-              tar -xzf "native/native-$target/dumpr-$version-$target.tar.gz" -C "$unpacked"
-              executable=dumpr
-            fi
-            scripts/generate-npm-packages.sh platform "$target" \
-              "$unpacked/dumpr-$version-$target/$executable" \
-              "npm-packages/$target"
-          done
-          scripts/generate-npm-packages.sh wrapper \
-            '@iktrnch/dumpr' npm-packages/wrapper-scoped
-          scripts/generate-npm-packages.sh wrapper \
-            dumpr-cli npm-packages/wrapper-unscoped
-      - name: Pack npm packages
-        run: |
-          for package in npm-packages/*; do
-            (cd "$package" && npm pack)
-          done
+      - name: Generate and pack npm packages from tested binaries
+        run: scripts/ci/package-npm.sh
       - name: Smoke test packed Linux package with both wrappers
-        run: |
-          version="$(scripts/release-metadata.sh)"
-          package_root="$PWD/npm-packages"
-          smoke_root="$PWD/npm-smoke"
-          native_package="$package_root/x86_64-unknown-linux-musl/iktrnch-dumpr-linux-x64-$version.tgz"
-
-          smoke_wrapper() {
-            wrapper_package="$1"
-            wrapper_name="$2"
-            smoke_dir="$3"
-            mkdir -p "$smoke_dir"
-            (
-              cd "$smoke_dir"
-              npm install --offline --omit=optional --ignore-scripts \
-                --no-audit --no-fund --no-save --package-lock=false \
-                "$native_package" "$wrapper_package"
-              test -f node_modules/@iktrnch/dumpr-linux-x64/package.json
-              test "$(node -p "require('./node_modules/$wrapper_name/package.json').name")" = "$wrapper_name"
-              node_modules/.bin/dumpr --help
-              test "$(node_modules/.bin/dumpr --version)" = "dumpr $version"
-            )
-          }
-
-          smoke_wrapper \
-            "$package_root/wrapper-scoped/iktrnch-dumpr-$version.tgz" \
-            '@iktrnch/dumpr' \
-            "$smoke_root/scoped"
-          smoke_wrapper \
-            "$package_root/wrapper-unscoped/dumpr-cli-$version.tgz" \
-            dumpr-cli \
-            "$smoke_root/unscoped"
-
-          cmp \
-            "$package_root/wrapper-scoped/bin/dumpr.cjs" \
-            "$package_root/wrapper-unscoped/bin/dumpr.cjs"
-          cmp \
-            "$smoke_root/scoped/node_modules/@iktrnch/dumpr-linux-x64/bin/dumpr" \
-            "$smoke_root/unscoped/node_modules/@iktrnch/dumpr-linux-x64/bin/dumpr"
+        run: scripts/ci/test-npm.sh
       - name: Collect packed npm artifacts
-        run: |
-          version="$(scripts/release-metadata.sh)"
-          mkdir npm-dist
-          find npm-packages -type f -name '*.tgz' -exec cp -- {} npm-dist/ \;
-          test "$(find npm-dist -maxdepth 1 -type f -name '*.tgz' | wc -l)" -eq 6
-          for artifact in \
-            "iktrnch-dumpr-linux-x64-$version.tgz" \
-            "iktrnch-dumpr-linux-arm64-$version.tgz" \
-            "iktrnch-dumpr-darwin-arm64-$version.tgz" \
-            "iktrnch-dumpr-win32-x64-$version.tgz" \
-            "iktrnch-dumpr-$version.tgz" \
-            "dumpr-cli-$version.tgz"
-          do
-            test -f "npm-dist/$artifact"
-          done
+        run: scripts/ci/collect-npm-artifacts.sh
       - uses: actions/upload-artifact@v4
         with:
           name: npm-packages
@@ -235,31 +128,11 @@ jobs:
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.47.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Extract exact tested binary and package it
-        run: |
-          tar -xzf input/dumpr-*-x86_64-unknown-linux-musl.tar.gz -C input
-          scripts/package-linux.sh input/dumpr-*-x86_64-unknown-linux-musl/dumpr amd64 dist
+        run: scripts/ci/package-linux.sh input amd64 dist
       - name: Test Debian package in clean Ubuntu
-        run: |
-          expected_version="$(scripts/release-metadata.sh)"
-          docker run --rm \
-            --env DUMPR_EXPECTED_VERSION="$expected_version" \
-            -v "$PWD/dist:/packages:ro" \
-            ubuntu:24.04 bash -ec '
-            apt-get update; apt-get install -y /packages/*.deb
-            test -x /usr/bin/dumpr; dumpr --help
-            test "$(dumpr --version)" = "dumpr $DUMPR_EXPECTED_VERSION"
-          '
+        run: scripts/ci/test-linux-package.sh deb
       - name: Test RPM in clean Fedora
-        run: |
-          expected_version="$(scripts/release-metadata.sh)"
-          docker run --rm \
-            --env DUMPR_EXPECTED_VERSION="$expected_version" \
-            -v "$PWD/dist:/packages:ro" \
-            fedora:latest bash -ec '
-            dnf install -y /packages/*.rpm
-            test -x /usr/bin/dumpr; dumpr --help
-            test "$(dumpr --version)" = "dumpr $DUMPR_EXPECTED_VERSION"
-          '
+        run: scripts/ci/test-linux-package.sh rpm
       - run: (cd dist && sha256sum -- ./*.deb ./*.rpm > SHA256SUMS-linux-packages.txt)
       - uses: actions/upload-artifact@v4
         with:
@@ -277,29 +150,4 @@ jobs:
           name: native-x86_64-unknown-linux-musl
           path: native
       - name: Validate source and binary AUR packages in clean Arch
-        run: |
-          version="$(scripts/release-metadata.sh)"
-          mkdir -p aur-fixtures
-          git archive --format=tar.gz --prefix="dumpr-$version/" -o "aur-fixtures/dumpr-$version.tar.gz" HEAD
-          cp native/dumpr-*-x86_64-unknown-linux-musl.tar.gz aur-fixtures/dumpr-bin.tar.gz
-          chmod -R a+rwx aur-fixtures
-          docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
-            pacman -Syu --noconfirm --needed cargo python namcap
-            useradd -m builder
-            mkdir -p /work/aur-source
-            chown -R builder:builder /work/aur-fixtures /work/aur-source
-            su builder -c "cd /work && scripts/generate-aur.sh source aur-source file:///work/aur-fixtures/dumpr-'"$version"'.tar.gz $(sha256sum aur-fixtures/dumpr-'"$version"'.tar.gz | cut -d\  -f1)"
-            su builder -c "cd /work/aur-source && makepkg -f --noconfirm && namcap *.pkg.tar.zst"
-            pacman -U --noconfirm /work/aur-source/*.pkg.tar.zst
-            dumpr --help; test "$(dumpr --version)" = "dumpr '"$version"'"
-          '
-          docker run --rm -v "$PWD:/work" -w /work archlinux:base-devel bash -ec '
-            pacman -Syu --noconfirm --needed cargo python namcap
-            useradd -m builder
-            mkdir -p /work/aur-bin
-            chown -R builder:builder /work/aur-fixtures /work/aur-bin
-            su builder -c "cd /work && scripts/generate-aur.sh bin aur-bin file:///work/aur-fixtures/dumpr-bin.tar.gz $(sha256sum aur-fixtures/dumpr-bin.tar.gz | cut -d\  -f1) x86_64"
-            su builder -c "cd /work/aur-bin && makepkg -f --noconfirm && namcap *.pkg.tar.zst"
-            pacman -U --noconfirm /work/aur-bin/*.pkg.tar.zst
-            test -x /usr/bin/dumpr; dumpr --help; test "$(dumpr --version)" = "dumpr '"$version"'"
-          '
+        run: scripts/ci/validate-aur.sh

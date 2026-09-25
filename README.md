@@ -253,14 +253,14 @@ release-version source. A pushed `vX.Y.Z` tag must match it exactly.
 Run the version check locally:
 
 ```sh
-scripts/check-release-version.sh v1.0.0
+scripts/ci/check-release-version.sh v1.0.0
 ```
 
 Install [actionlint](https://github.com/rhysd/actionlint) and validate the
 workflows locally with:
 
 ```sh
-scripts/validate-workflows.sh
+scripts/ci/validate-workflows.sh
 ```
 
 Use **Actions → Release → Run workflow** to run the complete release build and

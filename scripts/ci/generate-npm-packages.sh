@@ -27,7 +27,7 @@ render_template() {
 
 mode="${1:-}"
 shift || true
-version="$(scripts/release-metadata.sh)"
+version="$(scripts/ci/release-metadata.sh)"
 
 case "$mode" in
   wrapper)
