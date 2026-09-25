@@ -9,34 +9,69 @@ permissions:
   contents: read
 
 jobs:
-  validate-tag:
-    if: github.event_name == 'push'
+  prepare:
     runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      ci_run_id: ${{ steps.ci_run.outputs.ci_run_id }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
-      - run: scripts/check-release-version.sh '${{ github.ref_name }}'
-
-  test:
-    needs: validate-tag
-    if: always() && (github.event_name == 'workflow_dispatch' || needs.validate-tag.result == 'success')
-    uses: ./.github/workflows/test.yml
-    with:
-      release: true
-    permissions:
-      contents: read
+      - name: Validate release tag version
+        if: github.ref_type == 'tag'
+        run: scripts/check-release-version.sh '${{ github.ref_name }}'
+      - name: Find successful main CI run for exact commit
+        id: ci_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit_sha="$(git rev-parse 'HEAD^{commit}')"
+          runs="$(gh api --method GET \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f head_sha="$commit_sha" \
+            -f branch=main \
+            -f event=push \
+            -f status=success \
+            -f per_page=100)"
+          ci_run_id="$(jq -r --arg sha "$commit_sha" '
+            [
+              .workflow_runs[]
+              | select(.head_sha == $sha)
+              | select(.event == "push")
+              | select(.head_branch == "main")
+              | select(.conclusion == "success")
+            ]
+            | max_by(.id)
+            | .id // empty
+          ' <<<"$runs")"
+          if ! [[ "$ci_run_id" =~ ^[0-9]+$ ]]; then
+            echo "::error::No successful CI push run on main exists for commit $commit_sha." >&2
+            echo "::error::Push this exact commit to main and wait for CI to succeed before creating a release tag." >&2
+            exit 1
+          fi
+          echo "Resolved commit $commit_sha to successful CI run $ci_run_id"
+          echo "ci_run_id=$ci_run_id" >> "$GITHUB_OUTPUT"
 
   github-release:
-    needs: test
+    needs: prepare
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
+      actions: read
       contents: write
+    outputs:
+      ci_run_id: ${{ needs.prepare.outputs.ci_run_id }}
     steps:
       - uses: actions/download-artifact@v4
         with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.prepare.outputs.ci_run_id }}
           path: release-assets
           merge-multiple: true
       - name: Create GitHub Release from tested artifacts
@@ -75,6 +110,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
@@ -86,6 +122,9 @@ jobs:
       - run: npm install -g npm@^11.15.0
       - uses: actions/download-artifact@v4
         with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.github-release.outputs.ci_run_id }}
           name: npm-packages
           path: npm-artifacts
       - name: Publish exact tested npm packages
@@ -140,6 +179,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@v4
@@ -147,6 +187,9 @@ jobs:
           ref: ${{ github.ref }}
       - uses: actions/download-artifact@v4
         with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.github-release.outputs.ci_run_id }}
           name: native-x86_64-unknown-linux-musl
           path: native
       - name: Configure AUR SSH key
