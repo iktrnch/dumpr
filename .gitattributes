@@ -1,0 +1,5 @@
+** -linguist-detectable
+
+src/** linguist-detectable
+tests/** linguist-detectable
+benches/** linguist-detectable

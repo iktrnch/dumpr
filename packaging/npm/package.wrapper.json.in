@@ -1,0 +1,22 @@
+{
+  "name": "@PACKAGE_NAME@",
+  "version": "@VERSION@",
+  "description": "Native launcher for dumpr",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iktrnch/dumpr.git"
+  },
+  "bin": {
+    "dumpr": "bin/dumpr.cjs"
+  },
+  "files": [
+    "bin"
+  ],
+  "optionalDependencies": {
+    "@iktrnch/dumpr-linux-x64": "@VERSION@",
+    "@iktrnch/dumpr-linux-arm64": "@VERSION@",
+    "@iktrnch/dumpr-darwin-arm64": "@VERSION@",
+    "@iktrnch/dumpr-win32-x64": "@VERSION@"
+  }
+}

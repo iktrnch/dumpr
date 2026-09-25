@@ -1,0 +1,19 @@
+{
+  "name": "@PACKAGE_NAME@",
+  "version": "@VERSION@",
+  "description": "Native dumpr binary for @TARGET@",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iktrnch/dumpr.git"
+  },
+  "os": [
+    "@OS@"
+  ],
+  "cpu": [
+    "@CPU@"
+  ],
+  "files": [
+    "bin"
+  ]
+}

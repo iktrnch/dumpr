@@ -150,33 +150,67 @@ jobs:
               "$unpacked/dumpr-$version-$target/$executable" \
               "npm-packages/$target"
           done
-          scripts/generate-npm-packages.sh wrapper npm-packages/wrapper
+          scripts/generate-npm-packages.sh wrapper \
+            '@iktrnch/dumpr' npm-packages/wrapper-scoped
+          scripts/generate-npm-packages.sh wrapper \
+            dumpr-cli npm-packages/wrapper-unscoped
       - name: Pack npm packages
         run: |
           for package in npm-packages/*; do
             (cd "$package" && npm pack)
           done
-      - name: Smoke test packed Linux package and wrapper
+      - name: Smoke test packed Linux package with both wrappers
         run: |
-          mkdir npm-smoke
-          cd npm-smoke
-          npm install --omit=optional --no-save \
-            ../npm-packages/x86_64-unknown-linux-musl/iktrnch-dumpr-linux-x64-*.tgz \
-            ../npm-packages/wrapper/iktrnch-dumpr-*.tgz
-          npx --no-install dumpr --help
-          test "$(npx --no-install dumpr --version)" = "dumpr $(../scripts/release-metadata.sh)"
+          version="$(scripts/release-metadata.sh)"
+          package_root="$PWD/npm-packages"
+          smoke_root="$PWD/npm-smoke"
+          native_package="$package_root/x86_64-unknown-linux-musl/iktrnch-dumpr-linux-x64-$version.tgz"
+
+          smoke_wrapper() {
+            wrapper_package="$1"
+            wrapper_name="$2"
+            smoke_dir="$3"
+            mkdir -p "$smoke_dir"
+            (
+              cd "$smoke_dir"
+              npm install --offline --omit=optional --ignore-scripts \
+                --no-audit --no-fund --no-save --package-lock=false \
+                "$native_package" "$wrapper_package"
+              test -f node_modules/@iktrnch/dumpr-linux-x64/package.json
+              test "$(node -p "require('./node_modules/$wrapper_name/package.json').name")" = "$wrapper_name"
+              node_modules/.bin/dumpr --help
+              test "$(node_modules/.bin/dumpr --version)" = "dumpr $version"
+            )
+          }
+
+          smoke_wrapper \
+            "$package_root/wrapper-scoped/iktrnch-dumpr-$version.tgz" \
+            '@iktrnch/dumpr' \
+            "$smoke_root/scoped"
+          smoke_wrapper \
+            "$package_root/wrapper-unscoped/dumpr-cli-$version.tgz" \
+            dumpr-cli \
+            "$smoke_root/unscoped"
+
+          cmp \
+            "$package_root/wrapper-scoped/bin/dumpr.cjs" \
+            "$package_root/wrapper-unscoped/bin/dumpr.cjs"
+          cmp \
+            "$smoke_root/scoped/node_modules/@iktrnch/dumpr-linux-x64/bin/dumpr" \
+            "$smoke_root/unscoped/node_modules/@iktrnch/dumpr-linux-x64/bin/dumpr"
       - name: Collect packed npm artifacts
         run: |
           version="$(scripts/release-metadata.sh)"
           mkdir npm-dist
           find npm-packages -type f -name '*.tgz' -exec cp -- {} npm-dist/ \;
-          test "$(find npm-dist -maxdepth 1 -type f -name '*.tgz' | wc -l)" -eq 5
+          test "$(find npm-dist -maxdepth 1 -type f -name '*.tgz' | wc -l)" -eq 6
           for artifact in \
             "iktrnch-dumpr-linux-x64-$version.tgz" \
             "iktrnch-dumpr-linux-arm64-$version.tgz" \
             "iktrnch-dumpr-darwin-arm64-$version.tgz" \
             "iktrnch-dumpr-win32-x64-$version.tgz" \
-            "iktrnch-dumpr-$version.tgz"
+            "iktrnch-dumpr-$version.tgz" \
+            "dumpr-cli-$version.tgz"
           do
             test -f "npm-dist/$artifact"
           done

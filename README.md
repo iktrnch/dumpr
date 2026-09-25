@@ -82,6 +82,18 @@ For the prebuilt release binary (no local Rust compilation), use `dumpr-bin`:
 paru -S dumpr-bin
 ```
 
+### npm
+
+Run the scoped or unscoped wrapper package with Bun:
+
+```sh
+bunx @iktrnch/dumpr --version
+bunx dumpr-cli --version
+```
+
+Both packages install the executable as `dumpr` and use the same native
+platform packages.
+
 ### Debian/Ubuntu and Fedora/RHEL
 
 Each GitHub release includes prebuilt `.deb` and `.rpm` packages for Linux
@@ -257,7 +269,9 @@ matching tag pushes.
 
 Before the first real release, configure crates.io Trusted Publishing for this
 repository/package and npm Trusted Publishing for `@iktrnch/dumpr` and each
-public `@iktrnch/dumpr-*` package. Add the repository secret `AUR_SSH_PRIVATE_KEY`,
+public `@iktrnch/dumpr-*` package. The new `dumpr-cli` package needs one manual
+bootstrap publish; then configure its npm Trusted Publisher to trust
+`.github/workflows/release.yml`. Add the repository secret `AUR_SSH_PRIVATE_KEY`,
 whose public key has write access to both AUR package repositories. No registry
 token is stored in this repository.
 

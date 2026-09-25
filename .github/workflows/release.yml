@@ -158,13 +158,19 @@ jobs:
             platform_packages+=("$resolved")
           done
 
-          wrapper_filename="iktrnch-dumpr-$version.tgz"
-          resolve_exact "$wrapper_filename"
-          wrapper_package="$resolved"
+          wrapper_filenames=(
+            "iktrnch-dumpr-$version.tgz"
+            "dumpr-cli-$version.tgz"
+          )
+          wrapper_packages=()
+          for filename in "${wrapper_filenames[@]}"; do
+            resolve_exact "$filename"
+            wrapper_packages+=("$resolved")
+          done
 
           mapfile -t all_packages < <(find "$artifact_root" -type f -name '*.tgz' | sort)
-          if [ "${#all_packages[@]}" -ne 5 ]; then
-            echo "::error::Expected exactly five npm artifacts; found ${#all_packages[@]}" >&2
+          if [ "${#all_packages[@]}" -ne 6 ]; then
+            echo "::error::Expected exactly six npm artifacts; found ${#all_packages[@]}" >&2
             printf 'npm artifact: %s\n' "${all_packages[@]}" >&2
             exit 1
           fi
@@ -172,7 +178,9 @@ jobs:
           for package in "${platform_packages[@]}"; do
             npm publish "$package"
           done
-          npm publish "$wrapper_package"
+          for package in "${wrapper_packages[@]}"; do
+            npm publish "$package"
+          done
 
   aur:
     needs: github-release
