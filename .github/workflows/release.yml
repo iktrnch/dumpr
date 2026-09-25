@@ -45,10 +45,14 @@ jobs:
         run: |
           mapfile -t assets < <(find release-assets -type f | sort)
           test "${#assets[@]}" -gt 0
-          gh release create '${{ github.ref_name }}' --generate-notes "${assets[@]}"
+          gh release create '${{ github.ref_name }}' \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            "${assets[@]}"
 
   crates-io:
-    needs: [validate-tag, test]
+    needs: github-release
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
@@ -67,7 +71,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
 
   npm:
-    needs: [validate-tag, test]
+    needs: github-release
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
@@ -90,10 +94,11 @@ jobs:
             v*) version="${GITHUB_REF_NAME#v}" ;;
             *) echo "::error::Expected a v-prefixed release tag, got: $GITHUB_REF_NAME" >&2; exit 1 ;;
           esac
+          artifact_root="$GITHUB_WORKSPACE/npm-artifacts"
 
           resolve_exact() {
             local filename="$1"
-            mapfile -t matches < <(find npm-artifacts -type f -name "$filename" | sort)
+            mapfile -t matches < <(find "$artifact_root" -type f -name "$filename" | sort)
             if [ "${#matches[@]}" -ne 1 ]; then
               echo "::error::Expected exactly one npm artifact named $filename; found ${#matches[@]}" >&2
               printf 'Matched artifact: %s\n' "${matches[@]}" >&2
@@ -118,7 +123,7 @@ jobs:
           resolve_exact "$wrapper_filename"
           wrapper_package="$resolved"
 
-          mapfile -t all_packages < <(find npm-artifacts -type f -name '*.tgz' | sort)
+          mapfile -t all_packages < <(find "$artifact_root" -type f -name '*.tgz' | sort)
           if [ "${#all_packages[@]}" -ne 5 ]; then
             echo "::error::Expected exactly five npm artifacts; found ${#all_packages[@]}" >&2
             printf 'npm artifact: %s\n' "${all_packages[@]}" >&2
@@ -131,7 +136,7 @@ jobs:
           npm publish "$wrapper_package"
 
   aur:
-    needs: [github-release, crates-io, npm]
+    needs: github-release
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
