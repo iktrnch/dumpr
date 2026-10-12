@@ -11,3 +11,6 @@ benches/results/*
 # perf / flamegraph profiler output
 perf.data
 perf.data.old
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

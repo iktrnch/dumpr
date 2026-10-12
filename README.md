@@ -1,104 +1,88 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/iktrnch/dumpr/refs/heads/main/assets/dumpr.svg" alt="Dumpr logo" width="300">
+  <img src="https://raw.githubusercontent.com/iktrnch/dumpr/refs/heads/main/assets/dumpr.svg" alt="dumpr" width="280">
 </p>
 
 <p align="center">
-  <strong>Turn a project directory into a readable text dump.</strong>
+  <strong>Turn a project directory into a readable text snapshot.</strong>
 </p>
 
-
 <p align="center">
-    <a href="https://crates.io/crates/dumpr">
-        <img src="https://img.shields.io/crates/v/dumpr?label=crates.io" alt="crates.io version">
-    </a>
-    <a href="https://aur.archlinux.org/packages/dumpr">
-        <img src="https://img.shields.io/aur/version/dumpr?label=AUR" alt="AUR version">
-    </a>
-    <a href="LICENSE.md">
-        <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license">
-    </a>
+  <a href="https://crates.io/crates/dumpr">
+    <img src="https://img.shields.io/crates/v/dumpr?label=crates.io" alt="crates.io version">
+  </a>
+  <a href="https://aur.archlinux.org/packages/dumpr">
+    <img src="https://img.shields.io/aur/version/dumpr?label=AUR" alt="AUR version">
+  </a>
+  <a href="LICENSE.md">
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license">
+  </a>
 </p>
 
----
+<p align="center">
+  <a href="#installation">Installation</a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="#filtering">Filtering</a> ·
+  <a href="#cli-reference">CLI reference</a> ·
+  <a href="#development">Development</a>
+</p>
 
-**dumpr** is a small command-line tool for creating readable text snapshots of
-directories.
+**dumpr** is a small command-line tool written in Rust that combines a directory
+tree and text-file contents into one output. Use it to prepare context for a code
+review or AI tool, share a project snapshot, or inspect source files from your
+terminal.
 
-It can print:
-
-- a directory tree
-- the contents of matching text files
-- both in one output
-
-It is useful when you want to:
-
-- inspect a small project quickly
-- paste relevant source files into an AI/code-review tool
-- share a compact project snapshot in an issue, article, or message
-- generate a readable dump of a repository without manually opening files
-
-`dumpr` respects ignore rules before applying include or exclude filters, so
-ignored files are skipped before any custom matching happens.
+- Print a directory tree, file contents, or both.
+- Select relevant files with repeatable include and exclude globs.
+- Write plain text to stdout for redirection and shell pipelines.
 
 <p align="center">
-  <img src="https://github.com/iktrnch/dumpr/blob/main/assets/dumpr.gif?raw=true" alt="Dumpr demo">
+  <img src="https://raw.githubusercontent.com/iktrnch/dumpr/refs/heads/main/assets/dumpr.gif" alt="Terminal demonstration of dumpr printing a directory tree and file contents" width="900">
 </p>
 
 ## Installation
 
-### crates.io
+### Cargo
 
-Requires a working Rust toolchain with Cargo installed.
+With a Rust toolchain installed:
 
 ```sh
 cargo install dumpr
 ```
 
-Make sure Cargo's binary directory is on your `PATH`:
+Make sure Cargo's binary directory, usually `~/.cargo/bin`, is on your `PATH`.
+
+### npm packages
+
+Run either wrapper package with Bun:
 
 ```sh
-export PATH="$HOME/.cargo/bin:$PATH"
+bunx @iktrnch/dumpr --version
+# Or use the unscoped package:
+bunx dumpr-cli --version
 ```
 
-Most Rust installations already configure this automatically.
+Both packages provide the `dumpr` command and use the same native binaries.
+Supported platforms are Linux (x86_64 and ARM64), macOS (Apple Silicon), and
+Windows (x86_64).
 
-### Arch Linux AUR
+### Arch Linux
 
-Install from the AUR with your preferred helper:
+Install from the AUR with your preferred helper, such as `paru` or `yay`:
 
 ```sh
 paru -S dumpr
 ```
 
-or:
+For the prebuilt binary, install `dumpr-bin` instead.
 
-```sh
-yay -S dumpr
-```
+### Prebuilt releases
 
-For the prebuilt release binary (no local Rust compilation), use `dumpr-bin`:
+Download native archives from [GitHub Releases](https://github.com/iktrnch/dumpr/releases).
+They cover the same platforms as the npm packages and include SHA-256 checksums.
 
-```sh
-paru -S dumpr-bin
-```
-
-### npm
-
-Run the scoped or unscoped wrapper package with Bun:
-
-```sh
-bunx @iktrnch/dumpr --version
-bunx dumpr-cli --version
-```
-
-Both packages install the executable as `dumpr` and use the same native
-platform packages.
-
-### Debian/Ubuntu and Fedora/RHEL
-
-Each GitHub release includes prebuilt `.deb` and `.rpm` packages for Linux
-x86_64. Download the matching release asset and install it with your normal
-package manager; dumpr does not provide an APT or DNF repository.
+Linux x86_64 releases also include `.deb` packages for Debian/Ubuntu and `.rpm`
+packages for Fedora/RHEL. Install the downloaded package with your system's
+package manager. There is no dumpr APT or DNF repository.
 
 ### From source
 
@@ -108,180 +92,148 @@ cd dumpr
 cargo install --path .
 ```
 
-You can also run it directly while developing:
-
-```sh
-cargo run -- --tree --files
-```
-
 ## Usage
 
-Print the directory tree for the current directory:
-
-```sh
-dumpr --tree
-```
-
-Print file contents for the current directory:
-
-```sh
-dumpr --files
-```
-
-Print both the tree and file contents:
-
-```sh
-dumpr --tree --files
-```
-
-With neither output flag, `dumpr` prints both sections. Therefore, this:
+Run `dumpr` in a project directory to print its tree followed by its text-file
+contents:
 
 ```sh
 dumpr
 ```
 
-is equivalent to:
+The directory defaults to `.`. With neither output flag supplied, both sections
+are printed, so `dumpr` is equivalent to `dumpr . --tree --files`.
 
 ```sh
-dumpr . --tree --files
+# Inspect another project
+dumpr path/to/project
+
+# Print only the directory tree
+dumpr --tree
+
+# Print only text-file contents
+dumpr --files
+
+# Save a snapshot
+dumpr > dump.txt
 ```
 
-Dump another directory:
+File contents are labeled with their paths. Warnings and errors go to stderr,
+keeping redirected stdout focused on the snapshot. If the output file is inside
+the selected directory, dumpr skips it to avoid reading its own output.
 
-```sh
-dumpr path/to/project --tree --files
-```
-
-Only include Rust files:
-
-```sh
-dumpr --tree --files --include '*.rs'
-```
-
-Exclude generated files or directories:
-
-```sh
-dumpr --tree --files --exclude 'target/**' --exclude '*.lock'
-```
-
-Save the output to a file:
-
-```sh
-dumpr --tree --files > dump.txt
-```
+> [!TIP]
+> Quote glob patterns so your shell passes them to dumpr without expanding them.
 
 ## Filtering
 
-`--include` and `--exclude` are gitignore-style glob patterns matched against
-paths relative to the selected directory. A pattern without `/`, such as
-`*.rs`, matches a file or directory name at any depth. Use repeated flags for
-multiple patterns.
-
-Filtering order:
-
-1. ignore rules are applied
-2. `--include` is applied
-3. `--exclude` is applied
-
-Examples:
+Use `--include` and `--exclude` to select paths relative to the chosen directory.
+Patterns use gitignore-style syntax: `*.rs` matches names at any depth, while
+`src/**` targets paths under `src/`. Repeat either option for multiple patterns.
 
 ```sh
-# Only dump Rust source files
-dumpr --files --include '*.rs'
+# Include Rust and Markdown files
+dumpr --include '*.rs' --include '*.md'
 
-# Dump everything except Cargo.lock and target/
-dumpr --tree --files --exclude 'Cargo.lock' --exclude 'target/**'
+# Exclude build artifacts and lockfiles
+dumpr --exclude 'target/**' --exclude '*.lock'
 
-# Dump Markdown and Rust files only
-dumpr --files --include '*.md' --include '*.rs'
+# Print Rust source contents, excluding generated files
+dumpr --files --include '*.rs' --exclude 'generated.rs'
 ```
+
+By default, dumpr skips hidden entries and respects `.ignore` files and Git ignore
+rules. Git-specific rules, including `.gitignore`, apply when the directory is
+inside a Git repository.
+
+When includes are supplied, files must match an include pattern. Exclusions take
+precedence over includes. A directory excluded during traversal is not searched.
+
+> [!NOTE]
+> Explicit include matches can override ignore rules and include hidden files.
+> Files inside directories that remain ignored are still skipped.
 
 ## CLI reference
 
-| Argument or option        | Description                                                                                  |
-| ------------------------- | -------------------------------------------------------------------------------------------- |
-| `[DIRECTORY]`             | Directory to read as the first positional argument. Defaults to `.`.                         |
-| `-t, --tree`              | Print a tree view of matching files.                                                         |
-| `-f, --files`             | Print matching text-file contents. With neither output flag, both sections are printed.      |
-| `-i, --include <GLOB>`    | Only include paths matching this glob. Repeat for multiple patterns.                         |
-| `-e, --exclude <GLOB>`    | Exclude paths matching this glob. Repeat for multiple patterns.                              |
-| `-h, --help`              | Print command-line help.                                                                     |
-| `-V, --version`           | Print the installed version.                                                                 |
+```text
+dumpr [OPTIONS] [DIRECTORY]
+```
 
-## Notes
+| Argument or option | Description |
+| --- | --- |
+| `[DIRECTORY]` | Directory to read. Defaults to `.`. |
+| `-t, --tree` | Print the directory tree. |
+| `-f, --files` | Print matching text-file contents. |
+| `-i, --include <GLOB>` | Include matching paths. Repeat for multiple patterns. |
+| `-e, --exclude <GLOB>` | Exclude matching paths. Repeat for multiple patterns. |
+| `-h, --help` | Show command-line help. |
+| `-V, --version` | Show the installed version. |
 
-`dumpr` is intended for readable project snapshots, not for archiving or backup.
+With neither `--tree` nor `--files`, both sections are printed.
 
-Symlinks are never followed. Non-text and unreadable files are omitted from the
-file-content section. Dumpr prints a warning with the skipped path to stderr in
-each case. If stdout is redirected to a file inside the selected directory,
-that active output file is also omitted with a warning so it cannot ingest
-itself.
+## Output behavior
 
-Invalid roots and malformed globs are errors: dumpr exits non-zero, writes the
-error to stderr, and leaves stdout empty.
+- Symlinks are skipped and never followed; a symlink cannot be used as the root.
+- File contents must be valid UTF-8 without NUL bytes. Non-text and unreadable
+  files are omitted from the contents section with a warning identifying the path.
+- Invalid roots and malformed globs produce a nonzero exit status, write an error
+  to stderr, and leave stdout empty.
 
-Before sharing output publicly, check that it does not contain secrets, private
-keys, tokens, credentials, or other sensitive files.
+dumpr creates readable snapshots; it is not an archive or backup tool.
+
+> [!WARNING]
+> Review snapshots before sharing them. Ignore rules and file filters do not
+> guarantee that secrets, credentials, or other sensitive data are excluded.
 
 ## Development
 
-Run the project:
+Clone the repository and use Cargo to run and check the project:
 
 ```sh
-cargo run -- --tree --files
-```
-
-Run tests:
-
-```sh
+cargo run -- assets/demo
 cargo test
+cargo fmt --check
+cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Format the code:
+CI also builds native binaries and validates distribution packages. Workflow
+helpers live in [`scripts/ci/`](scripts/ci/).
+
+<details>
+<summary>Release automation and maintainer setup</summary>
+
+The [CI workflow](.github/workflows/ci.yml) builds, tests, and packages release
+artifacts. The [release workflow](.github/workflows/release.yml) requires a
+successful `main` CI run for the exact commit and publishes its tested binary
+artifacts without rebuilding them. The Rust crate is published separately with
+`cargo publish`.
+
+`Cargo.toml` is the version source. A pushed `vX.Y.Z` tag must match that version.
+Check a proposed tag locally, substituting the intended version:
 
 ```sh
-cargo fmt
+scripts/ci/check-release-version.sh vX.Y.Z
 ```
 
-## Release automation
-
-GitHub Actions builds each release binary once, smoke-tests it, packages the
-same file, and publishes only the tested artifacts. `Cargo.toml` is the single
-release-version source. A pushed `vX.Y.Z` tag must match it exactly.
-
-Run the version check locally:
-
-```sh
-scripts/ci/check-release-version.sh v1.0.0
-```
-
-Install [actionlint](https://github.com/rhysd/actionlint) and validate the
-workflows locally with:
+Install [actionlint](https://github.com/rhysd/actionlint) to validate the workflows:
 
 ```sh
 scripts/ci/validate-workflows.sh
 ```
 
-Use **Actions → Release → Run workflow** to run the complete release build and
-package validation without publishing. Registry and AUR publishing only run for
-matching tag pushes.
+Manually dispatching **Actions → Release → Run workflow** checks for a successful
+CI run for the selected commit without publishing. Builds and package validation
+run in CI.
 
-Before the first real release, configure crates.io Trusted Publishing for this
-repository/package and npm Trusted Publishing for `@iktrnch/dumpr` and each
-public `@iktrnch/dumpr-*` package. The new `dumpr-cli` package needs one manual
-bootstrap publish; then configure its npm Trusted Publisher to trust
-`.github/workflows/release.yml`. Add the repository secret `AUR_SSH_PRIVATE_KEY`,
-whose public key has write access to both AUR package repositories. No registry
-token is stored in this repository.
+Publishing requires crates.io Trusted Publishing, npm Trusted Publishing for both
+wrappers and each native platform package, and the `AUR_SSH_PRIVATE_KEY`
+repository secret with write access to both AUR package repositories. The
+`dumpr-cli` package requires an initial manual publish before configuring its
+Trusted Publisher for `.github/workflows/release.yml`.
+
+</details>
 
 ## Acknowledgements
 
-This project was inspired by [git-ingest](https://gitingest.com/), an excellent
-tool for turning Git repositories into LLM-friendly text input.
-
-See also: [coderamp-labs/gitingest](https://github.com/coderamp-labs/gitingest)
-
-## License
-
-MIT. See [LICENSE.md](LICENSE.md).
+Inspired by [Gitingest](https://github.com/coderamp-labs/gitingest), a tool for
+turning Git repositories into LLM-friendly text input.
